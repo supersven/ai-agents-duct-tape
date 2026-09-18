@@ -29,6 +29,7 @@
       {
         packages.default = wrap {
           package = opencode;
+          wrapArgs = "-n -e COLORTERM -e ZELLIJ -e OPENCODE_CONFIG_DIR -e OPENCODE_CONFIG -w ~/.config/opencode -w ~/.cache/opencode -w ~/.local/share/opencode/ -w ~/.local/state/opencode/";
         };
 
         devShells.default = pkgs.mkShell {
