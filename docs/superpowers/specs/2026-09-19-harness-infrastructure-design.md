@@ -181,7 +181,9 @@ Per system (via flake-utils `eachDefaultSystem`):
   regenerates `lib/types/generated.nix`).
 - `checks.types-are-current` — regenerates in a temp dir, compares to committed
   file.
-- `checks.<harness>` — builds each harness derivation.
+- `checks.<harness>` — builds each harness derivation and runs `opencode debug
+  config` inside it (via the harness wrapper) to verify opencode loads the
+  harness config, skills, tools, agents, commands, and rules.
 
 ## Example harness: superpowers
 
@@ -194,20 +196,42 @@ Per system (via flake-utils `eachDefaultSystem`):
     - `mkBundle` -> a derivation; copied to `$out/skills/`.
     - `config.opencode.skills.paths = [ "<$out>/skills" ]` (filled by the
       harness builder from the bundle path).
-    - an agent file `superpowers.md` in `./agents/` defining the harness's
-      sub-agent (mode, description, permissions) copied to `$out/agents/`.
-    - a command file (e.g. brainstorm) in `./commands/`.
+  - **parts-mechanics part** — exercises every file-copy channel with trivial
+    examples so all mechanics are proven, not just skills:
+    - an agent file `./agents/<name>.md` defining a simple sub-agent (mode,
+      description, permissions), copied to `$out/agents/`.
+    - a command file `./commands/<name>.md` (e.g. a trivial command), copied to
+      `$out/commands/`.
+    - a rule file `./rules/<name>.md` (short AGENTS.md-style instructions),
+      copied to `$out/rules/`.
+    - a local skill `./skills/<name>/SKILL.md` (minimal frontmatter + body),
+      copied to `$out/skills/`.
+    - a custom tool `./tools/<name>.ts` (a trivial `tool()` export), copied to
+      `$out/tools/`.
   - **base part**: sets wrapArgs defaults / any common config.
+
+All five local part files above live in the repo's dedicated folders
+(`./tools/`, `./agents/`, `./commands/`, `./rules/`, `./skills/`) per AGENTS.md,
+and are tiny so they only verify wiring, not content.
 
 ## Open questions (resolved)
 
 - superpowers skills: **from remote** (git flake input) via agent-skills-nix.
 - `packages.default`/`devShells.default`: **stay as the current unconfigured
-  wrap**.
+  wrap`.
 
 ## Verification
 
-- `nix flake check` runs: types-are-current, harness build.
+- `nix flake check` runs: types-are-current, harness build, and for each
+  harness an automated `opencode debug config` check.
+- The `opencode debug config` check runs the harness's wrapped `opencode debug
+  config` inside the sandbox and asserts the output shows:
+  - the merged config (e.g. `skills.paths`, permissions set by parts),
+  - the local skill, the remote superpowers skills,
+  - the custom tool,
+  - the agent,
+  - the command,
+  - the rule.
 - `nix build .#packages.superpowers` succeeds; `nix develop .#superpowers` puts
   `opencode` on PATH with the harness config.
 - Manual: run `opencode` inside the superpowers devShell and confirm the
