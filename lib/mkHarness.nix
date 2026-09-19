@@ -22,25 +22,26 @@ in
           nativeBuildInputs = [ pkgs.jq ];
           passAsFile = [ "configJSON" ];
           inherit configJSON pluginTgz zodTgz;
-          skills = lib.concatStringsSep " " (map toString parts.skills);
-          tools = lib.concatStringsSep " " (map toString parts.tools);
-          agents = lib.concatStringsSep " " (map toString parts.agents);
-          commands = lib.concatStringsSep " " (map toString parts.commands);
-          rules = lib.concatStringsSep " " (map toString parts.rules);
+          skills = lib.concatStringsSep " " parts.skills;
+          tools = lib.concatStringsSep " " parts.tools;
+          agents = lib.concatStringsSep " " parts.agents;
+          commands = lib.concatStringsSep " " parts.commands;
+          rules = lib.concatStringsSep " " parts.rules;
           inherit wrapped depsPath;
         }
         ''
           set -euo pipefail
           mkdir -p $out/skills $out/tools $out/agents $out/commands $out/rules
           cp $configJSONPath $out/opencode.json
+          printf 'node_modules\npackage.json\npackage-lock.json\nbun.lock\n.gitignore\n' > $out/.gitignore
 
-          for s in $skills; do cp -rL "$s" "$out/skills/"; done
-          for t in $tools; do cp -L "$t" "$out/tools/"; done
-          for a in $agents; do cp -L "$a" "$out/agents/"; done
-          for c in $commands; do cp -L "$c" "$out/commands/"; done
+          for s in $skills; do cp -rL "$s" "$out/skills/$(basename "$s" | sed -E 's/^[0-9a-z]{32}-//')"; done
+          for t in $tools; do cp -L "$t" "$out/tools/$(basename "$t" | sed -E 's/^[0-9a-z]{32}-//')"; done
+          for a in $agents; do cp -L "$a" "$out/agents/$(basename "$a" | sed -E 's/^[0-9a-z]{32}-//')"; done
+          for c in $commands; do cp -L "$c" "$out/commands/$(basename "$c" | sed -E 's/^[0-9a-z]{32}-//')"; done
 
           for r in $rules; do
-            cp -L "$r" "$out/rules/"
+            cp -L "$r" "$out/rules/$(basename "$r" | sed -E 's/^[0-9a-z]{32}-//')"
           done
 
           # rules are NOT auto-discovered: inject absolute store paths into instructions
