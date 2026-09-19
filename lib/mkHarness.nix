@@ -22,6 +22,7 @@ in
           nativeBuildInputs = [ pkgs.jq ];
           passAsFile = [ "configJSON" ];
           inherit configJSON pluginTgz zodTgz;
+          bashBin = "${pkgs.bash}/bin/bash";
           skills = lib.concatStringsSep " " parts.skills;
           tools = lib.concatStringsSep " " parts.tools;
           agents = lib.concatStringsSep " " parts.agents;
@@ -70,7 +71,7 @@ in
           # bin/opencode wrapper
           mkdir -p $out/bin
           cat > $out/bin/opencode <<EOF
-          #!/usr/bin/env bash
+          #!$bashBin
           export OPENCODE_CONFIG=$out/opencode.json
           export OPENCODE_CONFIG_DIR=$out
           export PATH=$depsPath:\$PATH

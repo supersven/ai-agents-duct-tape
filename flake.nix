@@ -63,6 +63,32 @@
             diff -u ${./lib/types/generated.nix} "$tmp/generated.nix" >&2
             echo ok > $out
           '';
+
+        checks.superpowers = pkgs.runCommand "check-superpowers"
+          {
+            nativeBuildInputs = [ superpowersHarness.package ];
+          }
+          ''
+            set -euo pipefail
+            export HOME=$TMPDIR
+            mkdir -p $HOME
+
+            opencode debug config > config.json
+            grep -q '"edit": "ask"' config.json
+            grep -q '"bash": "ask"' config.json
+            grep -q 'rules/team.md' config.json
+            grep -q '"reviewer"' config.json
+            grep -q '"status"' config.json
+
+            opencode debug skill > skills.json
+            grep -q 'local-demo' skills.json
+            grep -q 'brainstorming' skills.json
+
+            opencode debug agent plan > agent.json
+            grep -q '"hello"' agent.json
+
+            echo ok > $out
+          '';
       }
     );
 }
