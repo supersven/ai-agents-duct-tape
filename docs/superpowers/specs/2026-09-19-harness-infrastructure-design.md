@@ -267,6 +267,24 @@ that do so declare those extra packages as file outputs. The tool loader
 accepts both `tool()` results and plain exports (`isPluginTool` only checks
 the `args`/`description`/`execute` keys).
 
+### Remote plugins
+
+Remote plugins (npm or git specs in `config.opencode.plugin`, e.g.
+`"superpowers@git+https://github.com/obra/superpowers.git"`) are resolved and
+installed at **runtime**, not build time: opencode's `Npm.add(spec)` installs
+them into the writable cache `~/.cache/opencode/packages/<spec>`. No
+derivation-time npm handling is needed. Requirements already covered by the
+default `wrapArgs`:
+
+- `-n` (network access) — present in the default wrapArgs.
+- `-w ~/.cache/opencode` (writable package cache) — present in the default.
+- git-style plugins additionally need `git` on PATH inside the sandbox; the
+  devShell provides it, and a permanently-installed harness should add
+  `pkgs.git` to its dependencies.
+
+Parts declare remote plugins plainly:
+`config.opencode.plugin = [ "some-plugin@^1.2.3" ]`.
+
 ## flake wiring
 
 Per system (via flake-utils `eachDefaultSystem`):
