@@ -239,14 +239,33 @@ Because discovery is automatic, the builder no longer needs to set
 `$out`. `skills.paths`/`skills.urls` remain available to parts that want to
 reference skill dirs outside `$out`.
 
-### Custom tools in a read-only store dir
+### Custom tools and `@opencode-ai/plugin`
 
 opencode normally runs `npm install @opencode-ai/plugin` into each config
 directory so custom tools can `import { tool } from "@opencode-ai/plugin"`. In
-a read-only store dir `canWrite` is false, so this install is skipped and that
-import would fail. The example tool must therefore be a plain export
-(`{ description, args, execute }`) with no `@opencode-ai/plugin` import; the
-tool loader accepts such exports (`isPluginTool` only checks those keys).
+a read-only store dir `canWrite` is false, so this install is skipped and the
+import would fail to resolve — **unless the harness provides the package**.
+
+The harness builder therefore ships `$out/node_modules/@opencode-ai/plugin` and
+its load-time dependency `zod` (fixed-output fetches of the npm tarballs), so
+documented, normal tools work unchanged:
+
+```ts
+import { tool } from "@opencode-ai/plugin"
+export default tool({
+  description: "Count lines",
+  args: { file: tool.schema.string() },
+  async execute(args) { return "0" }
+})
+```
+
+Rationale: `tool()` is a compile-time no-op (`return input`); `tool.schema =
+z`. Loading the `.` entrypoint pulls `./tool.js`, which imports only `zod`.
+The remaining `@opencode-ai/plugin` deps (`effect`, `@ai-sdk/provider`,
+`@opencode-ai/sdk`) load only when a tool imports `v2/effect` subpaths; parts
+that do so declare those extra packages as file outputs. The tool loader
+accepts both `tool()` results and plain exports (`isPluginTool` only checks
+the `args`/`description`/`execute` keys).
 
 ## flake wiring
 
@@ -284,9 +303,9 @@ Per system (via flake-utils `eachDefaultSystem`):
       absolute store path (injected by the builder).
     - a local skill `./skills/<name>/SKILL.md` (minimal frontmatter + body),
       copied to `$out/skills/`.
-    - a custom tool `./tools/<name>.ts` (a trivial plain-object export
-      `{ description, args, execute }`, no `@opencode-ai/plugin` import),
-      copied to `$out/tools/`.
+    - a custom tool `./tools/<name>.ts` (a trivial `tool()`-based tool, proving
+      `@opencode-ai/plugin` resolution from `$out/node_modules/`), copied to
+      `$out/tools/`.
   - **base part**: sets wrapArgs defaults / any common config.
 
 All five local part files above live in the repo's dedicated folders
