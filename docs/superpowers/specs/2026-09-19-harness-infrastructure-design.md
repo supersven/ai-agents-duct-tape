@@ -80,7 +80,16 @@ informed by these tools' mapping rules but handling `freeformType` and
 - Fetches `https://opencode.ai/config.json` (or takes a local path for offline
   regeneration).
 - Converts each `$def` to a nixpkgs `types` expression and emits
-  `lib/types/generated.nix` as a `{ lib }:` function returning a `types` set.
+  `lib/types/generated.nix` as a `{ lib }:` function returning an attrset with
+  `types.<DefName>` for every `$def`, plus `options.Config` — the schema root
+  as `mkOption` declarations.
+
+Descriptions: schema `description` fields are preserved. Objects are emitted
+as `types.submodule { options = { <prop> = mkOption { type = ...; description
+= "..." }; ... }; freeformType = ... }` so descriptions surface in
+`nixos-option`-style tooling, editor hovers, and eval errors. (Decision
+2026-09-19: option B — `mkOption` tree carrying descriptions; bare types are
+still exported for domain types.)
 
 Mapping rules (improved over the researched tools):
 
@@ -108,9 +117,12 @@ are rejected; objects with both `properties` and `additionalProperties`
 (notably `agent`, `mode`) get a `freeformType` so additional keys are
 validated by the `additionalProperties` schema instead of being rejected.
 
-Generated file exposes at least: `types.<DefName>` for every `$def`, and the
-top-level `types.Config` (from the schema root). `Config` is the type used for
-a harness part's opencode config fragment.
+Generated file exposes at least: `types.<DefName>` for every `$def`, the
+top-level `types.Config` (from the schema root), and `options.Config` (the
+root as `mkOption` declarations with descriptions). `types.Config` is the type
+used for a harness part's opencode config fragment; `options.Config` is used
+by the harness module to declare the `opencode` option so descriptions are
+visible.
 
 ## Domain types (`lib/types/domain.nix`)
 
