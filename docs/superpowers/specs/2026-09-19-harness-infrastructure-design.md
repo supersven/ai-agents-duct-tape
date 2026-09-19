@@ -54,6 +54,27 @@ harnesses/
 
 ## Derived types (generated)
 
+### Existing-tool research (2026-09-19)
+
+Evaluated prebuilt JSON-schema → Nix type generators:
+
+- `schema2nix` (Go): most featureful, but fails on opencode's config.json —
+  cannot resolve the external models.dev `$ref`, is draft-07 only (config.json
+  is draft-2020-12 with `$defs`), and emits invalid Nix (`listOf mkOption {...}`).
+- `jsonschema2nix` (Haskell): the only tool that parses config.json
+  unmodified; emits a directly-usable options module. But it drops
+  `additionalProperties` when an object has both `properties` and
+  `additionalProperties` (breaks the `agent` field → custom agent names
+  rejected), and degrades `anyOf` to `anything`.
+- `fromJsonSchema` (pure Nix): runtime/IFD, basic types only, no enum/anyOf.
+- `json-schema-nix` / `nix-json-schema`: abandoned/incomplete.
+
+No tool is drop-in. Decision: **write a custom generator** (`scripts/generate-types.py`),
+informed by these tools' mapping rules but handling `freeformType` and
+`anyOf`/`oneOf` correctly.
+
+### Custom generator
+
 `scripts/generate-types.py`:
 
 - Fetches `https://opencode.ai/config.json` (or takes a local path for offline
@@ -61,7 +82,7 @@ harnesses/
 - Converts each `$def` to a nixpkgs `types` expression and emits
   `lib/types/generated.nix` as a `{ lib }:` function returning a `types` set.
 
-Mapping rules:
+Mapping rules (improved over the researched tools):
 
 | JSON Schema | Nix type |
 |---|---|
@@ -75,6 +96,7 @@ Mapping rules:
 | `anyOf` | `types.oneOf [...]` |
 | object, `additionalProperties:false` + `properties` | object type rejecting unknown keys |
 | object, `additionalProperties` = schema | `types.attrsOf T` |
+| object, `properties` + `additionalProperties` = schema (e.g. `agent`) | submodule with `freeformType = types.attrsOf T` — fixes jsonschema2nix's gap, so custom agent names work |
 | object, `additionalProperties` absent/`true` | `types.attrs` |
 | external `$ref` (models.dev `Model`) | `types.str` (it co-occurs with `type: string`) |
 
@@ -82,7 +104,9 @@ Object type: a custom module-compatible type (like nixpkgs `submodule` with
 `freeformType`) whose `merge` deep-merges attrs (recursive), concatenates
 lists, and takes last-wins for scalars (honoring `mkDefault`/`mkForce`), and
 whose `check` validates keys and value types against the schema. Unknown keys
-are rejected.
+are rejected; objects with both `properties` and `additionalProperties`
+(notably `agent`, `mode`) get a `freeformType` so additional keys are
+validated by the `additionalProperties` schema instead of being rejected.
 
 Generated file exposes at least: `types.<DefName>` for every `$def`, and the
 top-level `types.Config` (from the schema root). `Config` is the type used for
