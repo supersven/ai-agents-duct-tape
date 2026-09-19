@@ -140,9 +140,13 @@ Hand-written types built on the derived types:
 
 - `configType` — derived `Config`, used for the opencode config option.
 - `skill`, `tool`, `agent`, `rule`, `command` — `types.path` (local files) or a
-  derivation (bundles like agent-skills output), plus lightweight frontmatter
-  validation for `SKILL.md` / agent `.md` / command `.md` (name + description
-  required; name must match `^[a-z0-9]+(-[a-z0-9]+)*$`).
+  derivation (bundles like agent-skills output; also `pkgs.writeText*`,
+  `pkgs.substituteAll`, `pkgs.runCommand`, so files can be generated/templated
+  in Nix), plus lightweight frontmatter validation for `SKILL.md` / agent
+  `.md` / command `.md` (name + description required; name must match
+  `^[a-z0-9]+(-[a-z0-9]+)*$`). Because store-path contents cannot be read at
+  eval time (IFD), frontmatter validation happens in the derivation build step,
+  uniformly for local paths and generated files.
 - `harnessPart` — the module output record: `{ config; skills; tools; agents;
   rules; commands; dependencies; }` where `config` is typed by the derived
   `Config`. (`agents` and `dependencies` extend AGENTS.md's record: opencode
@@ -161,7 +165,11 @@ Typed options:
 - `opencode` — the opencode config fragment; type = derived `Config` (deep
   merge, schema validation). e.g. `config.opencode.permission.edit = "ask"`.
 - `skills`, `tools`, `agents`, `rules`, `commands` — `listOf (path or
-  derivation)`: files/dirs to copy into the harness.
+  derivation)`: files/dirs to copy into the harness. Derivations let parts
+  generate or template files in Nix (`pkgs.writeText*`, `pkgs.substituteAll`,
+  `pkgs.runCommand`); the harness builder copies each item to
+  `$out/<category>/<baseNameOf item>`, so generated file names must already be
+  valid skill/agent/command names (`^[a-z0-9]+(-[a-z0-9]+)*$`).
 - `dependencies` — `listOf package`: LSP servers, linters, tool runtimes. Each
   part is self-sufficient and provides its own dependencies.
 
