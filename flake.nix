@@ -52,15 +52,19 @@
           ''}/bin/update-types";
         };
 
-        checks.types-are-current = pkgs.runCommand "types-are-current"
+        checks.types-are-current = let
+          configJson = pkgs.fetchurl {
+            url = "https://opencode.ai/config.json";
+            sha256 = "sha256-6MtuKHo4Uu40A/SAO+WtaxnblJSAN+qpZyElwzNCeSI=";
+          };
+        in
+        pkgs.runCommand "types-are-current"
           {
-            nativeBuildInputs = [ pkgs.curl pkgs.python3 ];
+            nativeBuildInputs = [ pkgs.python3 ];
           }
           ''
-            tmp=$(mktemp -d)
-            curl -fsSL https://opencode.ai/config.json -o "$tmp/config.json"
-            python3 ${./scripts/generate-types.py} "$tmp/config.json" "$tmp/generated.nix"
-            diff -u ${./lib/types/generated.nix} "$tmp/generated.nix" >&2
+            python3 ${./scripts/generate-types.py} ${configJson} generated.nix
+            diff -u ${./lib/types/generated.nix} generated.nix >&2
             echo ok > $out
           '';
 

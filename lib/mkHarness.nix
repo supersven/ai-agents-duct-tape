@@ -1,5 +1,7 @@
 { lib, pkgs, evalHarness, wrap, defaultWrapArgs }:
 let
+  # @opencode-ai/plugin and zod are pinned to the exact versions shipped with
+  # the opencode release in use (currently 1.18.31, see llm-agents.nix input).
   pluginTgz = pkgs.fetchurl {
     url = "https://registry.npmjs.org/@opencode-ai/plugin/-/plugin-1.18.31.tgz";
     sha256 = "0xvzdp7zq2z0279jf1r6gkj69b535c548jc64vwfzil6i7a082gd";
@@ -23,6 +25,11 @@ in
           passAsFile = [ "configJSON" ];
           inherit configJSON pluginTgz zodTgz;
           bashBin = "${pkgs.bash}/bin/bash";
+          # NOTE: do NOT use map toString here. Nix 2.34 does not register
+          # flake-source paths as derivation inputs through toString; the
+          # string coercion of a path preserves the derivation context, and
+          # lib.concatStringsSep is what keeps that context alive so the
+          # files actually reach the sandbox.
           skills = lib.concatStringsSep " " parts.skills;
           tools = lib.concatStringsSep " " parts.tools;
           agents = lib.concatStringsSep " " parts.agents;
@@ -36,14 +43,24 @@ in
           cp $configJSONPath $out/opencode.json
           printf 'node_modules\npackage.json\npackage-lock.json\nbun.lock\n.gitignore\n' > $out/.gitignore
 
-          for s in $skills; do cp -rL "$s" "$out/skills/$(basename "$s" | sed -E 's/^[0-9a-z]{32}-//')"; done
-          for t in $tools; do cp -L "$t" "$out/tools/$(basename "$t" | sed -E 's/^[0-9a-z]{32}-//')"; done
-          for a in $agents; do cp -L "$a" "$out/agents/$(basename "$a" | sed -E 's/^[0-9a-z]{32}-//')"; done
-          for c in $commands; do cp -L "$c" "$out/commands/$(basename "$c" | sed -E 's/^[0-9a-z]{32}-//')"; done
-
-          for r in $rules; do
-            cp -L "$r" "$out/rules/$(basename "$r" | sed -E 's/^[0-9a-z]{32}-//')"
-          done
+          # Strip the ''${hash}- prefix (if present) from store paths: opencode
+          # names custom tools/skills by their file basename, and the hash
+          # prefix would leak into that name. [0-9a-z]{32} is the store hash
+          # (base32), NOT [0-9a-f]{32}.
+          copy_uniq() {
+            src=$1; dir=$2
+            dest="$out/$dir/$(basename "$src" | sed -E 's/^[0-9a-z]{32}-//')"
+            if [ -e "$dest" ]; then
+              echo "error: duplicate $dir name '$dest' from '$src'" >&2
+              exit 1
+            fi
+            cp -rL "$src" "$dest"
+          }
+          for s in $skills; do copy_uniq "$s" skills; done
+          for t in $tools; do copy_uniq "$t" tools; done
+          for a in $agents; do copy_uniq "$a" agents; done
+          for c in $commands; do copy_uniq "$c" commands; done
+          for r in $rules; do copy_uniq "$r" rules; done
 
           # rules are NOT auto-discovered: inject absolute store paths into instructions
           if [ -n "$rules" ]; then

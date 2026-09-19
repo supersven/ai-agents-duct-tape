@@ -12,11 +12,38 @@ IDENT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_'-]*$")
 
 def nix_attr(name: str) -> str:
     """Quote attr name if not a bare Nix identifier."""
-    return name if IDENT.match(name) else json.dumps(name)
+    return name if IDENT.match(name) else nix_str(name)
 
 
 def nix_str(s: str) -> str:
-    return json.dumps(s)
+    """Escape a string as a Nix double-quoted string literal.
+
+    Nix has no Unicode escape sequence: string literals are byte strings,
+    so non-ASCII characters must be emitted raw (UTF-8). Only `"`, `\\`,
+    `${`, and the `\\n`/`\\r`/`\\t` escapes are interpreted by Nix.
+    """
+    out = ['"']
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ch == "$" and i + 1 < len(s) and s[i + 1] == "{":
+            out.append("\\${")
+            i += 1
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\r":
+            out.append("\\r")
+        else:
+            out.append(ch)
+        i += 1
+    out.append('"')
+    return "".join(out)
 
 
 def nix_literal(v) -> str:
@@ -27,11 +54,6 @@ def nix_literal(v) -> str:
     if isinstance(v, (int, float)):
         return str(v)
     raise ValueError(f"unsupported literal: {v!r}")
-
-
-def quote_comment(node: dict) -> str:
-    d = node.get("description")
-    return f" # {d}" if isinstance(d, str) else ""
 
 
 class Gen:
@@ -98,7 +120,7 @@ class Gen:
             return "lib.types.attrs"
         lines = [f"{p}lib.types.submodule {{", f"{p}  options = {{"]
         for name, sub in props.items():
-            lines.append(f"{p}    {nix_attr(name)} = {self.mkoption(sub, ind + 3)};{quote_comment(sub)}")
+            lines.append(f"{p}    {nix_attr(name)} = {self.mkoption(sub, ind + 3)};")
         lines.append(f"{p}  }};")
         if isinstance(ap, dict):
             lines.append(f"{p}  freeformType = lib.types.attrsOf ({self.type_expr(ap, ind + 1)});")
@@ -122,7 +144,7 @@ class Gen:
         props = root.get("properties", {})
         lines = ["{"]
         for name, sub in props.items():
-            lines.append(f"  {nix_attr(name)} = {self.mkoption(sub, 1)};{quote_comment(sub)}")
+            lines.append(f"  {nix_attr(name)} = {self.mkoption(sub, 1)};")
         lines.append("}")
         return "\n".join(lines)
 
