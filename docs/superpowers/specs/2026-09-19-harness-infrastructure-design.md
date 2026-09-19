@@ -143,9 +143,11 @@ Hand-written types built on the derived types:
   derivation (bundles like agent-skills output), plus lightweight frontmatter
   validation for `SKILL.md` / agent `.md` / command `.md` (name + description
   required; name must match `^[a-z0-9]+(-[a-z0-9]+)*$`).
-- `harnessPart` — the module output record: `{ config; skills; tools; rules;
-  commands; }` where `config` is typed by the derived `Config`.
-- `dependencies` — `listOf types.package`.
+- `harnessPart` — the module output record: `{ config; skills; tools; agents;
+  rules; commands; dependencies; }` where `config` is typed by the derived
+  `Config`. (`agents` and `dependencies` extend AGENTS.md's record: opencode
+  only loads sub-agents from an `agents/` directory, and parts must be able to
+  provide their own runtime dependencies.)
 
 ## Harness part modules (`lib/modules.nix`)
 
@@ -158,18 +160,19 @@ Typed options:
 
 - `opencode` — the opencode config fragment; type = derived `Config` (deep
   merge, schema validation). e.g. `config.opencode.permission.edit = "ask"`.
-- `skills`, `tools`, `rules`, `commands` — `listOf (path or derivation)`:
-  files/dirs to copy into the harness.
+- `skills`, `tools`, `agents`, `rules`, `commands` — `listOf (path or
+  derivation)`: files/dirs to copy into the harness.
 - `dependencies` — `listOf package`: LSP servers, linters, tool runtimes. Each
   part is self-sufficient and provides its own dependencies.
 
-Output record shape (matches AGENTS.md):
+Output record shape (matches AGENTS.md, plus `agents` and `dependencies`):
 
 ```
 {
   config   :: derived Config;
   skills   :: [<file or dir to copy>];
   tools    :: [<file to copy>];
+  agents   :: [<file to copy>];
   rules    :: [<file to copy>];
   commands :: [<file to copy>];
   dependencies :: [package];
@@ -186,9 +189,10 @@ Output record shape (matches AGENTS.md):
    - `$out/skills/` — copy `parts.skills` (skill dirs, from agent-skills bundle
      or local `./skills/<name>`).
    - `$out/tools/` — copy `parts.tools`.
-   - `$out/agents/` — copy agent `.md` files.
-   - `$out/commands/` — copy command `.md` files.
-   - `$out/rules/` — copy rule files.
+   - `$out/agents/` — copy `parts.agents` (agent `.md` files).
+   - `$out/commands/` — copy `parts.commands`.
+   - `$out/rules/` — copy `parts.rules`; inject absolute store paths into
+     `config.instructions`.
 3. `wrapArgs` default: `"-n -e COLORTERM -e ZELLIJ -e OPENCODE_CONFIG_DIR -e
    OPENCODE_CONFIG -w ~/.config/opencode -w ~/.cache/opencode -w
    ~/.local/share/opencode/ -w ~/.local/state/opencode/"` (current flake args).
