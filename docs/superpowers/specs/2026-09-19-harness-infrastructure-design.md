@@ -193,17 +193,38 @@ Output record shape (matches AGENTS.md):
 6. Return `{ package, devShell, config }` where
    `devShell = pkgs.mkShell { packages = [ package ]; }`.
 
-Skills discovery: the harness builder guarantees the final config has
-`skills.paths` containing `$out/skills` (the derivation's own output path, not
-a string literal). Any `skills.paths` set by parts are preserved and merged;
-the builder appends its own entry if absent. This makes skills discoverable
-regardless of `OPENCODE_CONFIG_DIR` skill-scanning behavior. The wrapper sets
-the env vars and PATH; nixwrap passes them into the sandbox.
+### Auto-discovery of parts relative to `$out`
 
-The bundle/derivation store path is resolved at build time: `parts.skills`
-items that are derivations are copied into `$out/skills/<basename>` by the
-builder, and `$out` is the derivation's own output, so `skills.paths` can
-reference it directly without the part knowing the store path in advance.
+Verified against opencode source (2026-09-19): `OPENCODE_CONFIG_DIR` is
+appended to `ConfigPaths.directories()`, and all part loaders scan those
+directories, so parts under `$out` are picked up automatically:
+
+- `$out/opencode.json` — auto-loaded (dir === `OPENCODE_CONFIG_DIR`); the
+  `OPENCODE_CONFIG` env var is therefore redundant but harmless to keep.
+- `$out/skills/<name>/SKILL.md` — scanned via `{skill,skills}/**/SKILL.md`.
+- `$out/tools/*.{ts,js}` — scanned via `{tool,tools}/*.{js,ts}`.
+- `$out/agents/*.md` — scanned via `{agent,agents}/**/*.md`.
+- `$out/commands/*.md` — scanned via `{command,commands}/**/*.md`.
+- `$out/rules/` — **NOT auto-discovered**: opencode has no `rules/` directory
+  scanning. Rules load only from `AGENTS.md` files or `config.instructions`.
+  Relative `instructions` entries resolve from the session working directory,
+  not from `$out`, so the harness builder must inject absolute store paths
+  into `config.instructions` (e.g. `"<store>/rules/foo.md"`) when `parts.rules`
+  is non-empty.
+
+Because discovery is automatic, the builder no longer needs to set
+`skills.paths`; skills, tools, agents, and commands are found directly under
+`$out`. `skills.paths`/`skills.urls` remain available to parts that want to
+reference skill dirs outside `$out`.
+
+### Custom tools in a read-only store dir
+
+opencode normally runs `npm install @opencode-ai/plugin` into each config
+directory so custom tools can `import { tool } from "@opencode-ai/plugin"`. In
+a read-only store dir `canWrite` is false, so this install is skipped and that
+import would fail. The example tool must therefore be a plain export
+(`{ description, args, execute }`) with no `@opencode-ai/plugin` import; the
+tool loader accepts such exports (`isPluginTool` only checks those keys).
 
 ## flake wiring
 
@@ -230,8 +251,6 @@ Per system (via flake-utils `eachDefaultSystem`):
     - agent-skills-nix source = `superpowers` input, `subdir` = skills root.
     - `selectSkills` to include all superpowers skills (or an explicit list).
     - `mkBundle` -> a derivation; copied to `$out/skills/`.
-    - `config.opencode.skills.paths = [ "<$out>/skills" ]` (filled by the
-      harness builder from the bundle path).
   - **parts-mechanics part** — exercises every file-copy channel with trivial
     examples so all mechanics are proven, not just skills:
     - an agent file `./agents/<name>.md` defining a simple sub-agent (mode,
@@ -239,11 +258,13 @@ Per system (via flake-utils `eachDefaultSystem`):
     - a command file `./commands/<name>.md` (e.g. a trivial command), copied to
       `$out/commands/`.
     - a rule file `./rules/<name>.md` (short AGENTS.md-style instructions),
-      copied to `$out/rules/`.
+      copied to `$out/rules/`; referenced via `config.instructions` with the
+      absolute store path (injected by the builder).
     - a local skill `./skills/<name>/SKILL.md` (minimal frontmatter + body),
       copied to `$out/skills/`.
-    - a custom tool `./tools/<name>.ts` (a trivial `tool()` export), copied to
-      `$out/tools/`.
+    - a custom tool `./tools/<name>.ts` (a trivial plain-object export
+      `{ description, args, execute }`, no `@opencode-ai/plugin` import),
+      copied to `$out/tools/`.
   - **base part**: sets wrapArgs defaults / any common config.
 
 All five local part files above live in the repo's dedicated folders
@@ -262,12 +283,14 @@ and are tiny so they only verify wiring, not content.
   harness an automated `opencode debug config` check.
 - The `opencode debug config` check runs the harness's wrapped `opencode debug
   config` inside the sandbox and asserts the output shows:
-  - the merged config (e.g. `skills.paths`, permissions set by parts),
-  - the local skill, the remote superpowers skills,
-  - the custom tool,
-  - the agent,
-  - the command,
-  - the rule.
+  - the merged config (e.g. `instructions` pointing at `$out/rules/`,
+    permissions set by parts),
+  - the local skill and the remote superpowers skills (auto-discovered from
+    `$out/skills/`),
+  - the custom tool (from `$out/tools/`),
+  - the agent (from `$out/agents/`),
+  - the command (from `$out/commands/`),
+  - the rule (via `instructions`).
 - `nix build .#packages.superpowers` succeeds; `nix develop .#superpowers` puts
   `opencode` on PATH with the harness config.
 - Manual: run `opencode` inside the superpowers devShell and confirm the
