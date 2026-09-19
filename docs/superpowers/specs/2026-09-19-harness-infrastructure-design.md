@@ -109,13 +109,23 @@ Mapping rules (improved over the researched tools):
 | object, `additionalProperties` absent/`true` | `types.attrs` |
 | external `$ref` (models.dev `Model`) | `types.str` (it co-occurs with `type: string`) |
 
-Object type: a custom module-compatible type (like nixpkgs `submodule` with
-`freeformType`) whose `merge` deep-merges attrs (recursive), concatenates
-lists, and takes last-wins for scalars (honoring `mkDefault`/`mkForce`), and
-whose `check` validates keys and value types against the schema. Unknown keys
-are rejected; objects with both `properties` and `additionalProperties`
-(notably `agent`, `mode`) get a `freeformType` so additional keys are
-validated by the `additionalProperties` schema instead of being rejected.
+Object type: nixpkgs `types.submodule` with `options` (the `mkOption` tree
+described above) and an optional `freeformType`. Unknown-key handling matches
+the schema's `additionalProperties` and is **error reporting, not silent
+rejection**: the module system rejects an unknown key by raising an eval error
+naming the option path and suggesting alternatives, e.g.
+`The option 'opencode.agent.bob.bogus' does not exist. Did you mean
+'opencode.agent.bob.mode'?`. Concretely:
+
+- `additionalProperties:false` + `properties` → `types.submodule` **without**
+  `freeformType` → unknown keys are rejected with the precise message above.
+- `properties` + `additionalProperties` = schema (notably `agent`, `mode`) →
+  `types.submodule` with `freeformType = types.attrsOf T` → additional keys
+  are validated against `T` (a value of the wrong type still errors).
+- `additionalProperties` absent/`true` → `types.attrs` → any keys allowed.
+
+This rejects-and-reports, matching opencode's own runtime schema validation
+but catching typos at eval time instead of at first startup.
 
 Generated file exposes at least: `types.<DefName>` for every `$def`, the
 top-level `types.Config` (from the schema root), and `options.Config` (the
