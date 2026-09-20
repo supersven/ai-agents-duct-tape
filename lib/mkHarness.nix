@@ -1,5 +1,17 @@
-{ lib, pkgs, evalHarness, wrap, defaultWrapArgs }:
+{ lib, pkgs, nixwrap, opencode, evalHarness }:
 let
+  defaultWrapArgs =
+    "-n -e COLORTERM -e ZELLIJ -e OPENCODE_CONFIG_DIR -e OPENCODE_CONFIG"
+    + " -w ~/.config/opencode -w ~/.cache/opencode"
+    + " -w ~/.local/share/opencode/ -w ~/.local/state/opencode/";
+  prepareWrapArgs = wrapArgs:
+    let
+      hasConfig = lib.hasInfix "-e OPENCODE_CONFIG " wrapArgs;
+      hasDir = lib.hasInfix "-e OPENCODE_CONFIG_DIR " wrapArgs;
+    in
+    wrapArgs
+    + lib.optionalString (!hasConfig) " -e OPENCODE_CONFIG"
+    + lib.optionalString (!hasDir) " -e OPENCODE_CONFIG_DIR";
   # @opencode-ai/plugin and zod are pinned to the exact versions shipped with
   # the opencode release in use (currently 1.18.31, see llm-agents.nix input).
   pluginTgz = pkgs.fetchurl {
@@ -17,14 +29,16 @@ in
       parts = evalHarness { inherit modules; };
       cleanConfig = lib.filterAttrsRecursive (n: v: v != null) parts.config;
       configJSON = builtins.toJSON cleanConfig;
-      wrapped = wrap { wrapArgs = if wrapArgs == null then defaultWrapArgs else wrapArgs; };
+      wrapped = nixwrap.lib.${pkgs.system}.wrap {
+        package = opencode;
+        wrapArgs = prepareWrapArgs (if wrapArgs == null then defaultWrapArgs else wrapArgs);
+      };
       depsPath = lib.makeBinPath parts.dependencies;
       package = pkgs.runCommand name
         {
           nativeBuildInputs = [ pkgs.jq ];
           passAsFile = [ "configJSON" ];
           inherit configJSON pluginTgz zodTgz;
-          bashBin = "${pkgs.bash}/bin/bash";
           # NOTE: do NOT use map toString here. Nix 2.34 does not register
           # flake-source paths as derivation inputs through toString; the
           # string coercion of a path preserves the derivation context, and
@@ -88,7 +102,7 @@ in
           # bin/opencode wrapper
           mkdir -p $out/bin
           cat > $out/bin/opencode <<EOF
-          #!$bashBin
+          #!/usr/bin/env bash
           export OPENCODE_CONFIG=$out/opencode.json
           export OPENCODE_CONFIG_DIR=$out
           export PATH=$depsPath:\$PATH
@@ -103,5 +117,5 @@ in
       inherit (parts) config;
       devShell = pkgs.mkShell { packages = [ package ]; };
     };
+  inherit defaultWrapArgs;
 }
-
