@@ -127,8 +127,7 @@ prefetch-npm-deps package-lock.json
             # /etc/resolv.conf, /etc/ssl and /etc/static/ssl. The nix build sandbox
             # strips all three (no /usr, empty read-only /etc). This bwrap is not a
             # second jail: it only recreates those host bits so the unmodified
-            # upstream jail runs in the sandbox, verifying the shipped binary as-is
-            # (wrap.nix stays pristine).
+            # upstream jail runs in the sandbox, verifying the shipped binary as-is.
             #
             # The sandbox root is read-only and has no /usr, so instead of
             # mounting it wholesale we start from an empty tmpfs root and bind in

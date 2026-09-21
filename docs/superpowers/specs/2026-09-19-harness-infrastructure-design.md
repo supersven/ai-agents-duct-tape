@@ -135,9 +135,8 @@ visible.
 
 ## Domain types (`lib/types/domain.nix`)
 
-Hand-written types built on the derived types:
+Hand-written scalar types for the part-file lists:
 
-- `configType` — derived `Config`, used for the opencode config option.
 - `skill`, `tool`, `agent`, `rule`, `command` — `types.path` (local files) or a
   derivation (bundles like agent-skills output; also `pkgs.writeText*`,
   `pkgs.substituteAll`, `pkgs.runCommand`, so files can be generated/templated
@@ -150,11 +149,10 @@ Hand-written types built on the derived types:
   would silently drop it). Because store-path contents cannot be read at
   eval time (IFD), frontmatter validation happens in the derivation build step,
   uniformly for local paths and generated files.
-- `harnessPart` — the module output record: `{ config; skills; tools; agents;
-  rules; commands; dependencies; }` where `config` is typed by the derived
-  `Config`. (`agents` and `dependencies` extend AGENTS.md's record: opencode
-  only loads sub-agents from an `agents/` directory, and parts must be able to
-  provide their own runtime dependencies.)
+
+The harness part record — `{ config; skills; tools; agents; rules; commands;
+dependencies; }` where `config` is typed by the derived `Config` — is defined
+by `evalHarness`'s base options in `lib/modules.nix`, not here.
 
 ## Harness part modules (`lib/modules.nix`)
 
