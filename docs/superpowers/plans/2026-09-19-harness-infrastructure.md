@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-19-harness-infrastructure-design.md`
 
+> **Post-plan refactor (applies):** `lib/wrap.nix` was removed after implementation. The opencode jail is now the pure upstream `nixwrap.lib.${pkgs.system}.wrap` call inside `lib/mkHarness.nix` (with `defaultWrapArgs`/`prepareWrapArgs` moved there), and `packages.default` wraps via nixwrap directly. The Task 8 check runs the harness's jailed `bin/opencode` inside an outer fake-root `bwrap` (see `flake.nix` `checks.superpowers`) that recreates the host bits the pure jail assumes (`/usr/bin/env`, `/etc/resolv.conf`, `/etc/ssl`, `/etc/static/ssl`, `/tmp`). See the branch history for `refactor: pure nixwrap jail in mkHarness, fake-root bwrap sandbox check`.
+
 ## Global Constraints
 
 - Derived types come ONLY from the custom generator; `lib/types/generated.nix` is generated (never hand-edited). Regeneration via `nix run .#update-types`; `checks.types-are-current` verifies it's up to date.

@@ -124,14 +124,17 @@ in
               echo "error: missing frontmatter (no --- header) in $f" >&2; exit 1
             fi
           }
-          for s in $out/skills/*; do
-            [ -f "$s/SKILL.md" ] && validate_frontmatter "$s/SKILL.md" $skillSchema headerRequired
+          # Skills are discovered by opencode via **/SKILL.md, so validate
+          # recursively (covers e.g. the agent-skills bundle landing at
+          # $out/skills/agent-skills-bundle/<skill>/SKILL.md).
+          for s in $(find $out/skills -name SKILL.md); do
+            validate_frontmatter "$s" $skillSchema headerRequired
           done
-          for a in $out/agents/*.md; do
-            [ -f "$a" ] && validate_frontmatter "$a" $agentSchema headerNotRequired
+          for a in $(find $out/agents -name '*.md'); do
+            validate_frontmatter "$a" $agentSchema headerNotRequired
           done
-          for c in $out/commands/*.md; do
-            [ -f "$c" ] && validate_frontmatter "$c" $commandSchema headerNotRequired
+          for c in $(find $out/commands -name '*.md'); do
+            validate_frontmatter "$c" $commandSchema headerNotRequired
           done
 
           # bin/opencode wrapper
@@ -140,7 +143,7 @@ in
           #!/usr/bin/env bash
           export OPENCODE_CONFIG=$out/opencode.json
           export OPENCODE_CONFIG_DIR=$out
-          export PATH=$depsPath:\$PATH
+          export PATH=${if depsPath == "" then "\\$PATH" else depsPath + ":\\$PATH"}
           exec $wrapped/bin/opencode "\$@"
           EOF
           chmod +x $out/bin/opencode

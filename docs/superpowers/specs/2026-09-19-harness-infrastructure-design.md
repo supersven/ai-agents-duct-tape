@@ -38,8 +38,7 @@ lib/
     generated.nix                  # GENERATED: derived types from config.json (do not edit)
     domain.nix                     # domain types (part records, skills, tools, ...)
   modules.nix                      # evalHarness: module system / typed options
-  mkHarness.nix                    # derivation builder from evaluated parts
-  wrap.nix                         # nixwrap wrapper builder (harness-specific wrapArgs)
+  mkHarness.nix                    # derivation builder from evaluated parts; wraps opencode via pure nixwrap (wrapArgs via defaultWrapArgs/prepareWrapArgs)
 scripts/
   generate-types.py                # config.json -> lib/types/generated.nix
   update-types.sh                  # fetch config.json, run generator (flake app)
