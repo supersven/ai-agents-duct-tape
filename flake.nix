@@ -56,6 +56,47 @@
           ''}/bin/update-types";
         };
 
+        apps.update-node-modules = {
+          type = "app";
+          program = "${pkgs.writeShellScriptBin "update-node-modules" ''
+export PATH=${lib.makeBinPath [ pkgs.nodejs pkgs.prefetch-npm-deps ]}:$PATH
+set -euo pipefail
+repo_root="$PWD"
+if [ ! -f "$repo_root/lib/node-modules/package-lock.json" ]; then
+  echo "error: run from repo root (lib/node-modules/package-lock.json not found)" >&2
+  exit 1
+fi
+version="${opencode.version}"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+cat > "$tmp/package.json" <<EOF
+{ "name": "opencode-harness-deps", "version": "$version", "private": true,
+  "dependencies": { "@opencode-ai/plugin": "$version" } }
+EOF
+cd "$tmp"
+npm install --package-lock-only --ignore-scripts --no-audit --no-fund >/dev/null
+cp package-lock.json "$repo_root/lib/node-modules/package-lock.json"
+echo "updated lib/node-modules/package-lock.json (opencode $version)"
+prefetch-npm-deps package-lock.json
+          ''}/bin/update-node-modules";
+        };
+
+        checks.plugin-deps-are-current = pkgs.runCommand "plugin-deps-are-current"
+          {
+            nativeBuildInputs = [ pkgs.jq ];
+            expected = opencode.version;
+          }
+          ''
+            lockVersion=$(jq -r '.packages[""].version' ${./lib/node-modules/package-lock.json})
+            depVersion=$(jq -r '.packages[""].dependencies["@opencode-ai/plugin"]' ${./lib/node-modules/package-lock.json})
+            [ "$lockVersion" = "$expected" ] && [ "$depVersion" = "$expected" ] || {
+              echo "error: package-lock.json ($lockVersion/$depVersion) out of sync with opencode ($expected)" >&2
+              echo "run: nix run .#update-node-modules && update npmDepsHash in lib/mkHarness.nix" >&2
+              exit 1
+            }
+            echo ok > $out
+          '';
+
         checks.types-are-current = let
           configJson = pkgs.fetchurl {
             url = "https://opencode.ai/config.json";

@@ -251,9 +251,13 @@ directory so custom tools can `import { tool } from "@opencode-ai/plugin"`. In
 a read-only store dir `canWrite` is false, so this install is skipped and the
 import would fail to resolve — **unless the harness provides the package**.
 
-The harness builder therefore ships `$out/node_modules/@opencode-ai/plugin` and
-its load-time dependency `zod` (fixed-output fetches of the npm tarballs), so
-documented, normal tools work unchanged:
+The harness therefore ships `$out/node_modules/` built by `buildNpmPackage`
+from the committed `lib/node-modules/package-lock.json`. `package.json` is
+generated inline from the opencode input (`@opencode-ai/plugin` at
+`opencode.version`), so the version cannot drift; `npmDepsHash` pins the
+exact transitive closure (incl. `effect`, `@ai-sdk/provider`,
+`@opencode-ai/sdk`), preventing accidental upgrades. Refresh via
+`nix run .#update-node-modules` (see README.md). Normal tools work unchanged:
 
 ```ts
 import { tool } from "@opencode-ai/plugin"
@@ -267,10 +271,10 @@ export default tool({
 Rationale: `tool()` is a compile-time no-op (`return input`); `tool.schema =
 z`. Loading the `.` entrypoint pulls `./tool.js`, which imports only `zod`.
 The remaining `@opencode-ai/plugin` deps (`effect`, `@ai-sdk/provider`,
-`@opencode-ai/sdk`) load only when a tool imports `v2/effect` subpaths; parts
-that do so declare those extra packages as file outputs. The tool loader
-accepts both `tool()` results and plain exports (`isPluginTool` only checks
-the `args`/`description`/`execute` keys).
+`@opencode-ai/sdk`) are part of the shipped `node_modules`, so `v2/effect`
+subpath imports work too. The tool loader accepts both `tool()` results and
+plain exports (`isPluginTool` only checks the
+`args`/`description`/`execute` keys).
 
 ### Remote plugins
 

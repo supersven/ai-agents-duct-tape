@@ -4,7 +4,7 @@
 
 **Goal:** Build the harness-creating infrastructure for this flake: typed Nix part modules that compose into pre-configured opencode agents ("harnesses"), with a generator that derives Nix types from opencode's config schema.
 
-**Architecture:** Harness parts are standard nixpkgs modules (`lib.evalModules`) with typed options for `opencode` config, `skills`, `tools`, `agents`, `rules`, `commands`, and `dependencies`. A custom Python generator (`scripts/generate-types.py`) converts `https://opencode.ai/config.json` into `lib/types/generated.nix` (nixpkgs `types` + `options.Config` mkOption tree carrying descriptions). `mkHarness` evaluates the modules, writes `$out/opencode.json` + part dirs, ships `@opencode-ai/plugin` in `$out/node_modules/`, and wraps opencode via nixwrap with a `bin/opencode` wrapper script setting `OPENCODE_CONFIG`/`OPENCODE_CONFIG_DIR`.
+**Architecture:** Harness parts are standard nixpkgs modules (`lib.evalModules`) with typed options for `opencode` config, `skills`, `tools`, `agents`, `rules`, `commands`, and `dependencies`. A custom Python generator (`scripts/generate-types.py`) converts `https://opencode.ai/config.json` into `lib/types/generated.nix` (nixpkgs `types` + `options.Config` mkOption tree carrying descriptions). `mkHarness` evaluates the modules, writes `$out/opencode.json` + part dirs, ships `$out/node_modules/` (built by `buildNpmPackage` from the committed `lib/node-modules/package-lock.json`; `package.json` version derived from the opencode input), and wraps opencode via nixwrap with a `bin/opencode` wrapper script setting `OPENCODE_CONFIG`/`OPENCODE_CONFIG_DIR`.
 
 **Tech Stack:** Nix, nixpkgs module system (`lib.modules.evalModules`), Python 3 (generator), agent-skills-nix (skill bundles), nixwrap (sandboxing), llm-agents.nix (opencode package), jq (build-time JSON), `opencode debug config` (verification).
 
@@ -457,15 +457,29 @@ git commit -m "feat: nixwrap wrapper builder for harnesses"
 - [ ] **Step 1: Write the builder**
 
 ```nix
-{ lib, pkgs, evalHarness, wrap, defaultWrapArgs }:
+{ lib, pkgs, evalHarness, wrap, defaultWrapArgs, opencode }:
 let
-  pluginTgz = pkgs.fetchurl {
-    url = "https://registry.npmjs.org/@opencode-ai/plugin/-/plugin-1.18.31.tgz";
-    sha256 = "0xvzdp7zq2z0279jf1r6gkj69b535c548jc64vwfzil6i7a082gd";
-  };
-  zodTgz = pkgs.fetchurl {
-    url = "https://registry.npmjs.org/zod/-/zod-4.1.8.tgz";
-    sha256 = "0db67glfsfrbbh69s0x5qv9ld1kq718nl3n44bapkmk6vhrklghr";
+  # node_modules for custom tools via buildNpmPackage; package.json generated
+  # inline from the opencode input (version can't drift), lockfile committed,
+  # npmDepsHash pins the transitive closure. Refresh: nix run .#update-node-modules.
+  packageJSON = pkgs.writeText "package.json" (builtins.toJSON {
+    name = "opencode-harness-deps";
+    version = opencode.version;
+    private = true;
+    dependencies = { "@opencode-ai/plugin" = opencode.version; };
+  });
+  nodeModulesSrc = pkgs.runCommand "opencode-harness-deps-src" { } ''
+    mkdir -p $out
+    cp ${packageJSON} $out/package.json
+    cp ${./node-modules/package-lock.json} $out/package-lock.json
+  '';
+  nodeModules = pkgs.buildNpmPackage {
+    pname = "opencode-harness-deps";
+    version = opencode.version;
+    src = nodeModulesSrc;
+    npmDepsHash = "sha256-L7AqkgVrSrezS7jjVBqWevrypmmSX8Rs+CxUvmBZUCQ=";
+    dontNpmBuild = true;
+    installPhase = "mkdir -p $out/node_modules; cp -r node_modules/. $out/node_modules";
   };
 in
 {
@@ -481,7 +495,7 @@ in
       {
         nativeBuildInputs = [ pkgs.jq ];
         passAsFile = [ "configJSON" ];
-        inherit configJSON pluginTgz zodTgz;
+        inherit configJSON nodeModules;
         skills = lib.concatStringsSep " " (map toString parts.skills);
         tools = lib.concatStringsSep " " (map toString parts.tools);
         agents = lib.concatStringsSep " " (map toString parts.agents);
@@ -511,10 +525,8 @@ in
           mv $out/opencode.json.tmp $out/opencode.json
         fi
 
-        # @opencode-ai/plugin + zod for custom tools (npm install skipped in read-only store)
-        mkdir -p $out/node_modules/@opencode-ai/plugin $out/node_modules/zod
-        tar -xzf $pluginTgz -C $out/node_modules/@opencode-ai/plugin --strip-components=1
-        tar -xzf $zodTgz -C $out/node_modules/zod --strip-components=1
+        # node_modules for custom tools (@opencode-ai/plugin + transitive deps)
+        cp -r $nodeModules/node_modules $out/node_modules
 
         # frontmatter validation (build-time, IFD-safe), via declarative JSON
         # schemas in lib/types/schemas/ (yq + check-jsonschema). Lenient: agents

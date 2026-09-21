@@ -12,15 +12,29 @@ let
     wrapArgs
     + lib.optionalString (!hasConfig) " -e OPENCODE_CONFIG"
     + lib.optionalString (!hasDir) " -e OPENCODE_CONFIG_DIR";
-  # @opencode-ai/plugin and zod are pinned to the exact versions shipped with
-  # the opencode release in use (currently 1.18.31, see llm-agents.nix input).
-  pluginTgz = pkgs.fetchurl {
-    url = "https://registry.npmjs.org/@opencode-ai/plugin/-/plugin-1.18.31.tgz";
-    sha256 = "0xvzdp7zq2z0279jf1r6gkj69b535c548jc64vwfzil6i7a082gd";
-  };
-  zodTgz = pkgs.fetchurl {
-    url = "https://registry.npmjs.org/zod/-/zod-4.1.8.tgz";
-    sha256 = "0db67glfsfrbbh69s0x5qv9ld1kq718nl3n44bapkmk6vhrklghr";
+  # @opencode-ai/plugin node_modules for custom tools, built via buildNpmPackage
+  # from the committed package-lock.json. package.json is generated inline from
+  # the opencode input (version = opencode.version), so it cannot drift; the
+  # lockfile pins exact transitive versions and npmDepsHash prevents accidental
+  # upgrades. Refresh via `nix run .#update-node-modules` (see README.md).
+  packageJSON = pkgs.writeText "package.json" (builtins.toJSON {
+    name = "opencode-harness-deps";
+    version = opencode.version;
+    private = true;
+    dependencies = { "@opencode-ai/plugin" = opencode.version; };
+  });
+  nodeModulesSrc = pkgs.runCommand "opencode-harness-deps-src" { } ''
+    mkdir -p $out
+    cp ${packageJSON} $out/package.json
+    cp ${./node-modules/package-lock.json} $out/package-lock.json
+  '';
+  nodeModules = pkgs.buildNpmPackage {
+    pname = "opencode-harness-deps";
+    version = opencode.version;
+    src = nodeModulesSrc;
+    npmDepsHash = "sha256-L7AqkgVrSrezS7jjVBqWevrypmmSX8Rs+CxUvmBZUCQ=";
+    dontNpmBuild = true;
+    installPhase = "mkdir -p $out/node_modules; cp -r node_modules/. $out/node_modules";
   };
 in
 {
@@ -41,7 +55,7 @@ in
         {
           nativeBuildInputs = [ pkgs.jq pkgs.yq-go pkgs.check-jsonschema ];
           passAsFile = [ "configJSON" ];
-          inherit configJSON pluginTgz zodTgz skillSchema agentSchema commandSchema;
+          inherit configJSON nodeModules skillSchema agentSchema commandSchema;
           # NOTE: do NOT use map toString here. Nix 2.34 does not register
           # flake-source paths as derivation inputs through toString; the
           # string coercion of a path preserves the derivation context, and
@@ -87,10 +101,9 @@ in
             mv $out/opencode.json.tmp $out/opencode.json
           fi
 
-          # @opencode-ai/plugin + zod for custom tools (npm install skipped in read-only store)
-          mkdir -p $out/node_modules/@opencode-ai/plugin $out/node_modules/zod
-          tar -xzf $pluginTgz -C $out/node_modules/@opencode-ai/plugin --strip-components=1
-          tar -xzf $zodTgz -C $out/node_modules/zod --strip-components=1
+          # node_modules for custom tools (@opencode-ai/plugin + transitive deps),
+          # built via buildNpmPackage (see README.md "Updating node modules")
+          cp -r $nodeModules/node_modules $out/node_modules
 
           # frontmatter validation (build-time, IFD-safe), via declarative JSON
           # schemas in lib/types/schemas/ instead of hand-rolled awk. Lenient by
