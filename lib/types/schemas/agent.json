@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "model": { "type": "string" },
+    "variant": { "type": "string" },
+    "prompt": { "type": "string" },
+    "description": { "type": "string" },
+    "temperature": { "type": "number" },
+    "top_p": { "type": "number" },
+    "mode": { "enum": [ "subagent", "primary", "all" ] },
+    "disable": { "type": "boolean" },
+    "hidden": { "type": "boolean" },
+    "color": {
+      "type": "string",
+      "pattern": "^(#[0-9a-fA-F]{6}|primary|secondary|accent|success|warning|error|info)$"
+    },
+    "steps": { "type": "integer", "minimum": 1 },
+    "maxSteps": { "type": "integer", "minimum": 1 },
+    "permission": { "type": "object" },
+    "tools": { "type": "object" },
+    "options": { "type": "object" }
+  }
+}

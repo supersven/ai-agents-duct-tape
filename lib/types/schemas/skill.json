@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [ "name" ],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$",
+      "description": "DIVERGES from the opencode docs regex ^[a-z0-9]+(-[a-z0-9]+)*$: we additionally allow '/' so nested skill IDs from agent-skills-nix bundles (e.g. cat-a/skill-1) are not rejected. The opencode code is the truth (see AGENTS.md); its runtime loader only requires name to be a string and does not enforce the docs regex at all."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "license": {
+      "type": "string"
+    },
+    "compatibility": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

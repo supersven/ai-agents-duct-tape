@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "description": { "type": "string" },
+    "agent": { "type": "string" },
+    "model": { "type": "string" },
+    "variant": { "type": "string" },
+    "subtask": { "type": "boolean" }
+  }
+}

@@ -34,11 +34,14 @@ in
         wrapArgs = prepareWrapArgs (if wrapArgs == null then defaultWrapArgs else wrapArgs);
       };
       depsPath = lib.makeBinPath parts.dependencies;
+      skillSchema = ./types/schemas/skill.json;
+      agentSchema = ./types/schemas/agent.json;
+      commandSchema = ./types/schemas/command.json;
       package = pkgs.runCommand name
         {
-          nativeBuildInputs = [ pkgs.jq ];
+          nativeBuildInputs = [ pkgs.jq pkgs.yq-go pkgs.check-jsonschema ];
           passAsFile = [ "configJSON" ];
-          inherit configJSON pluginTgz zodTgz;
+          inherit configJSON pluginTgz zodTgz skillSchema agentSchema commandSchema;
           # NOTE: do NOT use map toString here. Nix 2.34 does not register
           # flake-source paths as derivation inputs through toString; the
           # string coercion of a path preserves the derivation context, and
@@ -89,14 +92,33 @@ in
           tar -xzf $pluginTgz -C $out/node_modules/@opencode-ai/plugin --strip-components=1
           tar -xzf $zodTgz -C $out/node_modules/zod --strip-components=1
 
-          # frontmatter validation (build-time, IFD-safe)
-          for f in $(find $out/skills -name SKILL.md) $out/agents/*.md $out/commands/*.md; do
-            [ -f "$f" ] || continue
-            name=$(awk 'NR==1 && $0=="---"{p=1;next} p&&$0=="---"{exit} p&&/^name:/{gsub(/^name:[[:space:]]*["'\'''\"]?/,"");gsub(/["'\'''\"]?[[:space:]]*$/,"");print;exit}' "$f")
-            desc=$(awk 'NR==1 && $0=="---"{p=1;next} p&&$0=="---"{exit} p&&/^description:/{print;exit}' "$f")
-            [ -n "$name" ] || { echo "error: missing name in $f" >&2; exit 1; }
-            [ -n "$desc" ] || { echo "error: missing description in $f" >&2; exit 1; }
-            echo "$name" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*$' || { echo "error: invalid name '$name' in $f" >&2; exit 1; }
+          # frontmatter validation (build-time, IFD-safe), via declarative JSON
+          # schemas in lib/types/schemas/ instead of hand-rolled awk. Lenient by
+          # design: agents/commands derive their name from the filename, so a
+          # missing frontmatter is fine there; opencode's runtime loader is the
+          # source of truth (see AGENTS.md). Skills must declare `name` — a skill
+          # without one is silently dropped by opencode.
+          validate_frontmatter() {
+            f=$1; schema=$2; headerRequired=$3
+            if head -1 "$f" | grep -q '^---$'; then
+              tmp=$(mktemp)
+              yq -f front-matter=process -o=json '.' "$f" > "$tmp"
+              check-jsonschema --schemafile "$schema" "$tmp" >/dev/null || {
+                echo "error: invalid frontmatter in $f" >&2; exit 1;
+              }
+              rm -f "$tmp"
+            elif [ "$headerRequired" = headerRequired ]; then
+              echo "error: missing frontmatter (no --- header) in $f" >&2; exit 1
+            fi
+          }
+          for s in $out/skills/*; do
+            [ -f "$s/SKILL.md" ] && validate_frontmatter "$s/SKILL.md" $skillSchema headerRequired
+          done
+          for a in $out/agents/*.md; do
+            [ -f "$a" ] && validate_frontmatter "$a" $agentSchema headerNotRequired
+          done
+          for c in $out/commands/*.md; do
+            [ -f "$c" ] && validate_frontmatter "$c" $commandSchema headerNotRequired
           done
 
           # bin/opencode wrapper

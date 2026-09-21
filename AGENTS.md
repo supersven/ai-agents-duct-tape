@@ -60,3 +60,9 @@ expectations to find these and interpret them correctly.
 These derivations also have dependencies like e.g. LSP servers or linters.
 Each part should be self-sufficient: E.g. if a tool needs some dependencie, its
 module should provide it.
+
+## New rules
+
+The opencode docs may be outdated. The opencode code is the truth: whenever
+docs and code disagree, adhere to the code and document the divergence (see
+the skill-name regex in `lib/types/schemas/skill.json`).

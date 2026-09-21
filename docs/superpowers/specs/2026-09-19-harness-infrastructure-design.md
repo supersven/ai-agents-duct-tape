@@ -142,9 +142,13 @@ Hand-written types built on the derived types:
 - `skill`, `tool`, `agent`, `rule`, `command` — `types.path` (local files) or a
   derivation (bundles like agent-skills output; also `pkgs.writeText*`,
   `pkgs.substituteAll`, `pkgs.runCommand`, so files can be generated/templated
-  in Nix), plus lightweight frontmatter validation for `SKILL.md` / agent
-  `.md` / command `.md` (name + description required; name must match
-  `^[a-z0-9]+(-[a-z0-9]+)*$`). Because store-path contents cannot be read at
+  in Nix), plus schema-based frontmatter validation for `SKILL.md` / agent
+  `.md` / command `.md` against declarative JSON Schemas
+  (`lib/types/schemas/{skill,agent,command}.json`), run with `yq` +
+  `check-jsonschema`. Lenient by design: agents/commands derive their name from
+  the filename, so missing frontmatter is fine there; skills must declare
+  `name`, so a `SKILL.md` without a `---` header fails the build (opencode
+  would silently drop it). Because store-path contents cannot be read at
   eval time (IFD), frontmatter validation happens in the derivation build step,
   uniformly for local paths and generated files.
 - `harnessPart` — the module output record: `{ config; skills; tools; agents;
@@ -169,7 +173,8 @@ Typed options:
   generate or template files in Nix (`pkgs.writeText*`, `pkgs.substituteAll`,
   `pkgs.runCommand`); the harness builder copies each item to
   `$out/<category>/<baseNameOf item>`, so generated file names must already be
-  valid skill/agent/command names (`^[a-z0-9]+(-[a-z0-9]+)*$`).
+  valid skill/agent/command names (see `lib/types/schemas/*.json`; skill names
+  allow `/` for nested IDs, a documented deviation from the opencode docs).
 - `dependencies` — `listOf package`: LSP servers, linters, tool runtimes. Each
   part is self-sufficient and provides its own dependencies.
 

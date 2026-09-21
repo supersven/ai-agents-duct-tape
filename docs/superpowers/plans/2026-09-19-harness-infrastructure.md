@@ -16,7 +16,7 @@
 - Every generated option uses `type = types.nullOr <T>` and `default = null` so `builtins.toJSON` of the merged config works; the harness builder strips nulls via `lib.filterAttrsRecursive (n: v: v != null)` before writing `opencode.json`.
 - Object with `properties` + `additionalProperties` absent → strict submodule (rejects unknown keys, giving "Did you mean" errors). Object with `properties` + `additionalProperties` = schema → submodule with `freeformType = types.attrsOf T`. Bare object (no properties): `additionalProperties` = schema → `types.attrsOf T`, else `types.attrs`.
 - `anyOf` → `types.oneOf`. External `$ref` (models.dev) co-occurs with `type: string` → `types.str`. Internal `$ref` → `types.<DefName>`. Array `prefixItems` → `types.listOf (types.oneOf [...])`.
-- Part file names must match `^[a-z0-9]+(-[a-z0-9]+)*$`; frontmatter (`name` + `description`) validated in the derivation build step (not at eval — IFD).
+- Part file names must match the schemas in `lib/types/schemas/{skill,agent,command}.json` (skill names allow `/` for nested IDs — a documented deviation from the opencode docs); frontmatter validated in the derivation build step via `yq` + `check-jsonschema` (not at eval — IFD). Lenient: agents/commands need no frontmatter (name from filename).
 - Rules are NOT auto-discovered by opencode; the builder injects absolute store paths into `config.instructions`.
 - `packages.default`/`devShells.default` stay as the current unconfigured wrap.
 - Harness parts are separate modules per concern (one per file category) to exercise module merging.
@@ -516,14 +516,31 @@ in
         tar -xzf $pluginTgz -C $out/node_modules/@opencode-ai/plugin --strip-components=1
         tar -xzf $zodTgz -C $out/node_modules/zod --strip-components=1
 
-        # frontmatter validation (build-time, IFD-safe)
-        for f in $(find $out/skills -name SKILL.md) $out/agents/*.md $out/commands/*.md; do
-          [ -f "$f" ] || continue
-          name=$(awk 'NR==1 && $0=="---"{p=1;next} p&&$0=="---"{exit} p&&/^name:/{gsub(/^name:[[:space:]]*["'\''\"]?/,"");gsub(/["'\''\"]?[[:space:]]*$/,"");print;exit}' "$f")
-          desc=$(awk 'NR==1 && $0=="---"{p=1;next} p&&$0=="---"{exit} p&&/^description:/{print;exit}' "$f")
-          [ -n "$name" ] || { echo "error: missing name in $f" >&2; exit 1; }
-          [ -n "$desc" ] || { echo "error: missing description in $f" >&2; exit 1; }
-          echo "$name" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*$' || { echo "error: invalid name '$name' in $f" >&2; exit 1; }
+        # frontmatter validation (build-time, IFD-safe), via declarative JSON
+        # schemas in lib/types/schemas/ (yq + check-jsonschema). Lenient: agents
+        # and commands derive their name from the filename, so missing
+        # frontmatter is fine; skills must declare `name`.
+        validate_frontmatter() {
+          f=$1; schema=$2; headerRequired=$3
+          if head -1 "$f" | grep -q '^---$'; then
+            tmp=$(mktemp)
+            yq -f front-matter=process -o=json '.' "$f" > "$tmp"
+            check-jsonschema --schemafile "$schema" "$tmp" >/dev/null || {
+              echo "error: invalid frontmatter in $f" >&2; exit 1;
+            }
+            rm -f "$tmp"
+          elif [ "$headerRequired" = headerRequired ]; then
+            echo "error: missing frontmatter (no --- header) in $f" >&2; exit 1
+          fi
+        }
+        for s in $out/skills/*; do
+          [ -f "$s/SKILL.md" ] && validate_frontmatter "$s/SKILL.md" $skillSchema headerRequired
+        done
+        for a in $out/agents/*.md; do
+          [ -f "$a" ] && validate_frontmatter "$a" $agentSchema headerNotRequired
+        done
+        for c in $out/commands/*.md; do
+          [ -f "$c" ] && validate_frontmatter "$c" $commandSchema headerNotRequired
         done
 
         # bin/opencode wrapper
