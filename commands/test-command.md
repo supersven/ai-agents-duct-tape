@@ -1,5 +1,5 @@
 ---
-name: status
+name: test-command
 description: "Show the current git status"
 ---
 

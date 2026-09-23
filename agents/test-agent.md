@@ -1,5 +1,5 @@
 ---
-name: reviewer
+name: test-agent
 mode: subagent
 description: "Review code changes for issues"
 ---

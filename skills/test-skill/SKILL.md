@@ -1,5 +1,5 @@
 ---
-name: local-demo
+name: test-skill
 description: "A tiny local skill to exercise the skills copy channel"
 ---
 

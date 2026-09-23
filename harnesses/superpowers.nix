@@ -26,11 +26,11 @@ let
           superpowers
           ;
       })
-      (import ./parts/skill.nix)
-      (import ./parts/tool.nix)
-      (import ./parts/agent.nix)
-      (import ./parts/command.nix)
-      (import ./parts/rule.nix)
+      (import ./parts/test-skill.nix)
+      (import ./parts/test-tool.nix)
+      (import ./parts/test-agent.nix)
+      (import ./parts/test-command.nix)
+      (import ./parts/test-rule.nix)
     ];
   };
 in

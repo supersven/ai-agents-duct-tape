@@ -210,16 +210,16 @@
                 run ${superpowersHarness.package}/bin/opencode debug config > config.json
                 grep -q '"edit": "ask"' config.json
                 grep -q '"bash": "ask"' config.json
-                grep -q 'rules/team.md' config.json
-                grep -q '"reviewer"' config.json
-                grep -q '"status"' config.json
+                grep -q 'rules/test-rule.md' config.json
+                grep -q '"test-agent"' config.json
+                grep -q '"test-command"' config.json
 
                 run ${superpowersHarness.package}/bin/opencode debug skill > skills.json
-                grep -q 'local-demo' skills.json
+                grep -q 'test-skill' skills.json
                 grep -q 'brainstorming' skills.json
 
                 run ${superpowersHarness.package}/bin/opencode debug agent plan > agent.json
-                grep -q '"hello"' agent.json
+                grep -q '"test-tool"' agent.json
 
                 echo ok > $out
               '';
