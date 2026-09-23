@@ -5,6 +5,7 @@ Usage: generate-types.py <config.json> <output.nix>
 """
 import json
 import re
+import subprocess
 import sys
 
 IDENT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_'-]*$")
@@ -177,13 +178,26 @@ class Gen:
         return "\n".join(out) + "\n"
 
 
+def nixfmt(s: str) -> str:
+    """Format Nix source with nixfmt-rfc-style (must be in PATH)."""
+    try:
+        res = subprocess.run(
+            ["nixfmt"], input=s, text=True, capture_output=True, check=True
+        )
+        return res.stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        stderr = getattr(e, "stderr", None)
+        detail = f": {stderr}" if stderr else ""
+        sys.exit(f"error: nixfmt failed: {e}{detail}")
+
+
 def main() -> None:
     if len(sys.argv) != 3:
         sys.exit("usage: generate-types.py <config.json> <output.nix>")
     with open(sys.argv[1]) as f:
         schema = json.load(f)
     with open(sys.argv[2], "w") as f:
-        f.write(Gen(schema).generate())
+        f.write(nixfmt(Gen(schema).generate()))
 
 
 if __name__ == "__main__":

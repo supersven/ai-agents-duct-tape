@@ -1,4 +1,3 @@
-{ lib, ... }:
-{
+_: {
   config.opencode.permission.edit = "ask";
 }

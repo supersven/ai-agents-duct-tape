@@ -1,4 +1,8 @@
-{ pkgs, lib, agent-skills, superpowers }:
+{
+  pkgs,
+  agent-skills,
+  superpowers,
+}:
 let
   agentLib = agent-skills.lib.agent-skills;
   sources = {
@@ -16,8 +20,7 @@ let
     inherit catalog sources allowlist;
   };
   bundle = agentLib.mkBundle {
-    inherit pkgs;
-    selection = selection;
+    inherit pkgs selection;
   };
 in
 {

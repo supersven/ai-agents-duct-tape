@@ -225,7 +225,8 @@
         "llm-agents": "llm-agents",
         "nixpkgs": "nixpkgs_3",
         "nixwrap": "nixwrap",
-        "superpowers": "superpowers"
+        "superpowers": "superpowers",
+        "treefmt-nix": "treefmt-nix_2"
       }
     },
     "superpowers": {
@@ -293,6 +294,26 @@
       "inputs": {
         "nixpkgs": [
           "llm-agents",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786901030,
+        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix_2": {
+      "inputs": {
+        "nixpkgs": [
           "nixpkgs"
         ]
       },
