@@ -49,6 +49,30 @@
             superpowers
             ;
         };
+        # Jailed semble: nixwrap-wrapped, one binary covers both the CLI and the
+        # MCP server (semble auto-dispatches to MCP when no subcommand is given,
+        # matching upstream's `uvx --from "semble[mcp]" semble`). Env vars from
+        # the semble README (Storage): SEMBLE_CACHE_LOCATION, SEMBLE_MAX_FILE_BYTES,
+        # SEMBLE_MODEL_NAME, HF_HOME. Writable: the default cache, HF model cache,
+        # and the savings ledger. `-n` for first-run HF model download / git URLs.
+        semble = nixwrap.lib.${system}.wrap {
+          package = llm-agents.packages.${system}.semble;
+          wrapArgs =
+            "-n -e SEMBLE_CACHE_LOCATION -e SEMBLE_MAX_FILE_BYTES"
+            + " -e SEMBLE_MODEL_NAME -e HF_HOME"
+            + " -w ~/.cache/semble -w ~/.cache/huggingface -w ~/.semble";
+        };
+        vanillaDevHarness = import ./harnesses/vanilla-dev.nix {
+          inherit
+            lib
+            pkgs
+            nixwrap
+            opencode
+            agent-skills
+            superpowers
+            semble
+            ;
+        };
         resolv = pkgs.writeText "resolv.conf" "nameserver 127.0.0.1\n";
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
       in
@@ -60,11 +84,13 @@
           wrapArgs = harnessLib.defaultWrapArgs;
         };
         packages.superpowers = superpowersHarness.package;
+        packages.vanilla-dev = vanillaDevHarness.package;
 
         devShells.default = pkgs.mkShell {
           packages = [ self.packages.${system}.default ];
         };
         devShells.superpowers = superpowersHarness.devShell;
+        devShells.vanilla-dev = vanillaDevHarness.devShell;
 
         apps = {
           update-types = {
@@ -157,6 +183,7 @@
                   pkgs.bubblewrap
                   pkgs.coreutils
                   pkgs.bash
+                  pkgs.jq
                   superpowersHarness.package
                 ];
                 inherit resolv;
@@ -208,18 +235,83 @@
                 }
 
                 run ${superpowersHarness.package}/bin/opencode debug config > config.json
-                grep -q '"edit": "ask"' config.json
-                grep -q '"bash": "ask"' config.json
-                grep -q 'rules/test-rule.md' config.json
-                grep -q '"test-agent"' config.json
-                grep -q '"test-command"' config.json
+                jq -e '.permission.edit == "ask"' config.json >/dev/null
+                jq -e '.permission.bash == "ask"' config.json >/dev/null
+                jq -e 'any(.instructions[]; endswith("rules/test-rule.md"))' config.json >/dev/null
+                jq -e '.agent | has("test-agent")' config.json >/dev/null
+                jq -e '.command | has("test-command")' config.json >/dev/null
 
                 run ${superpowersHarness.package}/bin/opencode debug skill > skills.json
-                grep -q 'test-skill' skills.json
-                grep -q 'brainstorming' skills.json
+                jq -e 'any(.[]; .name == "test-skill")' skills.json >/dev/null
+                jq -e 'any(.[]; .name == "brainstorming")' skills.json >/dev/null
 
                 run ${superpowersHarness.package}/bin/opencode debug agent plan > agent.json
-                grep -q '"test-tool"' agent.json
+                jq -e '.tools | has("test-tool")' agent.json >/dev/null
+
+                echo ok > $out
+              '';
+
+          vanilla-dev =
+            pkgs.runCommand "check-vanilla-dev"
+              {
+                nativeBuildInputs = [
+                  pkgs.bubblewrap
+                  pkgs.coreutils
+                  pkgs.bash
+                  pkgs.jq
+                  vanillaDevHarness.package
+                ];
+                inherit resolv semble;
+              }
+              ''
+                set -euo pipefail
+                export HOME=$TMPDIR; mkdir -p $HOME
+
+                run() {
+                  bwrap \
+                    --die-with-parent \
+                    --tmpfs / \
+                    --ro-bind /nix /nix \
+                    --dir /bin \
+                    --ro-bind /bin/sh /bin/sh \
+                    --dir /usr/bin \
+                    --ro-bind ${pkgs.coreutils}/bin/env /usr/bin/env \
+                    --ro-bind /etc/passwd /etc/passwd \
+                    --ro-bind /etc/group /etc/group \
+                    --ro-bind /etc/hosts /etc/hosts \
+                    --dir /etc/ssl --dir /etc/static/ssl \
+                    --ro-bind $resolv /etc/resolv.conf \
+                    --dir /tmp \
+                    --proc /proc --dev /dev \
+                    --bind $TMPDIR $TMPDIR \
+                    --setenv HOME $TMPDIR \
+                    --setenv PATH ${
+                      lib.makeBinPath [
+                        pkgs.bubblewrap
+                        pkgs.coreutils
+                        pkgs.bash
+                      ]
+                    } \
+                    --chdir $TMPDIR \
+                    -- "$@"
+                }
+
+                run ${vanillaDevHarness.package}/bin/opencode debug config > config.json
+                jq -e '.permission.edit == "ask"' config.json >/dev/null
+                jq -e '.mcp.semble.type == "local"' config.json >/dev/null
+                jq -e --arg cmd "${semble}/bin/semble" \
+                  'any(.mcp.semble.command[]; . == $cmd)' config.json >/dev/null
+                jq -e 'any(.instructions[]; endswith("rules/semble.md"))' config.json >/dev/null
+                jq -e 'any(.instructions[]; endswith("rules/be-concise.md"))' config.json >/dev/null
+                jq -e '.agent | has("semble-search")' config.json >/dev/null
+
+                run ${vanillaDevHarness.package}/bin/opencode debug skill > skills.json
+                jq -e 'any(.[]; .name == "brainstorming")' skills.json >/dev/null
+
+                run ${vanillaDevHarness.package}/bin/opencode debug agent semble-search > agent.json
+                jq -e '.name == "semble-search"' agent.json >/dev/null
+                jq -e '.mode == "subagent"' agent.json >/dev/null
+                jq -e 'any(.permission[]; .permission == "bash" and .action == "allow")' agent.json >/dev/null
 
                 echo ok > $out
               '';
