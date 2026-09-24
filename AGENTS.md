@@ -66,3 +66,10 @@ module should provide it.
 The opencode docs may be outdated. The opencode code is the truth: whenever
 docs and code disagree, adhere to the code and document the divergence (see
 the skill-name regex in `lib/types/schemas/skill.json`).
+
+## Adding parts and harnesses
+
+When creating a new harness part module or composed harness, wiring it into
+flake.nix, or adding a flake check, load the
+`creating-harness-parts` skill
+(`./skills/creating-harness-parts/SKILL.md`) and follow it.
