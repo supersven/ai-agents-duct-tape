@@ -23,9 +23,11 @@ def repo_root():
 
 
 def _http_fetch_page(base_url, page_size, offset):
-    with urllib.request.urlopen(
-        f"{base_url}?limit={page_size}&offset={offset}", timeout=30
-    ) as resp:
+    req = urllib.request.Request(
+        f"{base_url}?limit={page_size}&offset={offset}",
+        headers={"User-Agent": "ai-agents-duct-tape/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
         return json.load(resp)
 
 

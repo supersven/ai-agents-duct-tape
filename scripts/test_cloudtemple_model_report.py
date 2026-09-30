@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
@@ -85,6 +86,27 @@ class FetchPaginationTests(unittest.TestCase):
                 written = json.load(f)
         self.assertEqual([m["id"] for m in written["data"]], ["a", "b"])
         self.assertEqual(calls, [0, 1])
+
+
+class HttpFetchPageTests(unittest.TestCase):
+    def test_sends_user_agent_header(self):
+        captured = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+            def read(self):
+                return b'{"data": [], "has_more": false, "next_offset": null}'
+
+        def fake_urlopen(req, timeout=30):
+            captured["headers"] = req.headers
+            return FakeResponse()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            cloudtemple_model_report._http_fetch_page("https://example.com", 100, 0)
+        self.assertIn("User-agent", captured["headers"])
 
 
 if __name__ == "__main__":
