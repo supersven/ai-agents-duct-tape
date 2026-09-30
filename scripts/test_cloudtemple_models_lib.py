@@ -24,6 +24,11 @@ class RenderModelsNixTests(unittest.TestCase):
         out = render_models_nix([{"id": 'weird"id'}])
         self.assertIn('weird\\"id', out)
 
+    def test_escapes_nix_interpolation_in_id(self):
+        out = render_models_nix([{"id": "foo${bar}"}])
+        self.assertIn("foo\\${bar}", out)
+        self.assertNotIn('"foo${bar}"', out)
+
 
 class LoadModelsTests(unittest.TestCase):
     def test_missing_file_raises_clear_error(self):

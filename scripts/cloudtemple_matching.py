@@ -41,14 +41,24 @@ def parse_params_b(cloudtemple_id):
     return value
 
 
+_QUANT_RE = re.compile(r"\d+[bBmM]|[fF][pP]\d+|[qQ]\d\w*|[bB][fF]16|[aA][wW][qQ]|[gG][pP][tT][qQ]")
+
+
 def name_tokens(s):
     s = re.sub(r"\.gguf$", "", s, flags=re.I)
-    s = re.sub(r"(?<=[A-Za-z])(?=\d)", " ", s)
-    s = re.sub(r"[^A-Za-z0-9]+", " ", s)
-    tokens = {t.lower() for t in s.split()}
-    tokens = {
-        t for t in tokens if not re.fullmatch(r"\d+b|\d+m|fp\d+|q\d\w*|bf16|awq|gptq", t)
-    }
+    # Keep underscores intact through the quant-suffix check below: compound
+    # llama.cpp quant tags like "Q4_K_M" must survive as one token for
+    # _QUANT_RE (which uses \w*, matching underscores) to strip them whole --
+    # splitting them apart first would leak "k"/"m" as bare tokens.
+    s = re.sub(r"[^A-Za-z0-9_]+", " ", s)
+    tokens = set()
+    for t in s.split():
+        if _QUANT_RE.fullmatch(t):
+            continue
+        for piece in t.replace("_", " ").split():
+            for sub in re.split(r"(?<=[A-Za-z])(?=\d)", piece):
+                if sub:
+                    tokens.add(sub.lower())
     return tokens - NOISE_TOKENS
 
 

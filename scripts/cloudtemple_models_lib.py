@@ -12,7 +12,7 @@ def load_models(path):
 
 
 def _nix_string(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("${", "\\${") + '"'
 
 
 def render_models_nix(models):

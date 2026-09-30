@@ -3,6 +3,7 @@ import unittest
 from cloudtemple_matching import (
     find_match,
     match_all,
+    name_tokens,
     parse_org_and_family,
     parse_params_b,
     weights_match,
@@ -56,6 +57,13 @@ class ParsingTests(unittest.TestCase):
     def test_weights_match_large_model_relative_tolerance(self):
         self.assertTrue(weights_match(120.0, 116.8))
         self.assertFalse(weights_match(120.0, 90.0))
+
+    def test_name_tokens_strips_quant_suffix_intact(self):
+        tokens = name_tokens("Ministral-3-3B-Instruct-2512-Q4_K_M")
+        self.assertNotIn("q", tokens)
+        self.assertNotIn("k", tokens)
+        self.assertNotIn("m", tokens)
+        self.assertIn("ministral", tokens)
 
 
 class FindMatchTests(unittest.TestCase):
