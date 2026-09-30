@@ -1,3 +1,4 @@
+{ }:
 {
   config.opencode.agent = {
     build.model = "cloud-temple/qwen-coder-next:80b";
