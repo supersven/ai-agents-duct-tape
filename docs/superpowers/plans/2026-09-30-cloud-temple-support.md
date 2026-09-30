@@ -15,7 +15,7 @@
 - Provider id: `cloud-temple`. npm: `@ai-sdk/openai-compatible`. `options.baseURL = "https://api.ai.cloud-temple.com/v1"`. `options.apiKey = "{env:CLOUD_TEMPLE_API_TOKEN}"`.
 - `data/cloudtemple-models.json` and `data/modelgrep-models.json` are the only on-disk caches; both scripts default to using them and only touch the network on an explicit flag.
 - `harnesses/parts/generated/cloud-temple-models.nix` is machine output — only `fetch-cloudtemple-models.py --update` writes it, never hand-edited.
-- `enrichWithLLMaaS` suffixes the harness name with `-llmaas` and appends `-e CLOUD_TEMPLE_API_TOKEN` to `wrapArgs` — parts contribute `config`, jailing env vars for runtime secrets is the enrichment function's job, not the part's (per `creating-harness-parts`).
+- `enrichWithLLMaaS` suffixes the harness name with `-llmaas` and threads `wrapArgs` through unchanged. The API key is NOT jailed into the harness: `CLOUD_TEMPLE_API_TOKEN` is opencode's own runtime credential (read from the environment / `auth.json`), and jailing it via `wrapArgs` conflicted with that mechanism.
 - Curated agent slots: `build`, `plan`, `general`, `semble-search`. Values are hand-picked (best-guess), not auto-written by the report script.
 - Matching (Cloud Temple id <-> modelgrep entry) requires org/maker agreement, base-name token overlap, and weight agreement (`abs(diff) <= max(1.0, 0.15 * max(a,b))`) — all three, best-effort.
 - Dashed provider/agent keys need bracket form in jq assertions: `.provider["cloud-temple"]`, `.agent["semble-search"]` (per `creating-harness-parts` Common Mistakes).
@@ -999,7 +999,7 @@ rec {
         (import ../harnesses/parts/cloud-temple.nix { })
         (import ../harnesses/parts/cloud-temple-agents.nix { })
       ];
-      wrapArgs = (if wrapArgs == null then defaultWrapArgs else wrapArgs) + " -e CLOUD_TEMPLE_API_TOKEN";
+      inherit wrapArgs;
     };
   inherit defaultWrapArgs;
 }
@@ -1119,7 +1119,6 @@ vanilla-dev-llmaas =
     ''
       set -euo pipefail
       export HOME=$TMPDIR; mkdir -p $HOME
-      export CLOUD_TEMPLE_API_TOKEN=test-token
 
       run() {
         bwrap \
@@ -1139,7 +1138,6 @@ vanilla-dev-llmaas =
           --proc /proc --dev /dev \
           --bind $TMPDIR $TMPDIR \
           --setenv HOME $TMPDIR \
-          --setenv CLOUD_TEMPLE_API_TOKEN $CLOUD_TEMPLE_API_TOKEN \
           --setenv PATH ${
             lib.makeBinPath [
               pkgs.bubblewrap
@@ -1273,7 +1271,6 @@ superpowers-llmaas =
     ''
       set -euo pipefail
       export HOME=$TMPDIR; mkdir -p $HOME
-      export CLOUD_TEMPLE_API_TOKEN=test-token
 
       run() {
         bwrap \
@@ -1293,7 +1290,6 @@ superpowers-llmaas =
           --proc /proc --dev /dev \
           --bind $TMPDIR $TMPDIR \
           --setenv HOME $TMPDIR \
-          --setenv CLOUD_TEMPLE_API_TOKEN $CLOUD_TEMPLE_API_TOKEN \
           --setenv PATH ${
             lib.makeBinPath [
               pkgs.bubblewrap

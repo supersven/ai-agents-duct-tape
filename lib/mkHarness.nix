@@ -196,7 +196,7 @@ rec {
         (import ../harnesses/parts/cloud-temple.nix { })
         (import ../harnesses/parts/cloud-temple-agents.nix { })
       ];
-      wrapArgs = (if wrapArgs == null then defaultWrapArgs else wrapArgs) + " -e CLOUD_TEMPLE_API_TOKEN";
+      inherit wrapArgs;
     };
   inherit defaultWrapArgs;
 }

@@ -29,8 +29,11 @@ data-backed proposal for that mapping.
 `config.opencode.provider.cloud-temple`, `@ai-sdk/openai-compatible` npm
 package (confirmed via opencode docs: use this SDK for `/v1/chat/completions`-
 style endpoints), `options.baseURL = "https://api.ai.cloud-temple.com/v1"`,
-`options.apiKey = "{env:CLOUD_TEMPLE_API_TOKEN}"`. `models` comes from the
-generated catalog (below).
+`options.apiKey = "{env:CLOUD_TEMPLE_API_TOKEN}"`. The API key is opencode's
+own runtime credential, read from the environment by opencode (not jailed by
+the harness) and managed via opencode's `auth.json`/env; the harness jail
+deliberately does NOT pass `CLOUD_TEMPLE_API_TOKEN`, to avoid conflicting with
+that mechanism. `models` comes from the generated catalog (below).
 
 ### Generated vs. constant split
 
@@ -63,7 +66,7 @@ enrichWithLLMaaS =
       (import ../harnesses/parts/cloud-temple.nix { })
       (import ../harnesses/parts/cloud-temple-agents.nix { })
     ];
-    wrapArgs = (if wrapArgs == null then defaultWrapArgs else wrapArgs) + " -e CLOUD_TEMPLE_API_TOKEN";
+    inherit wrapArgs;
   };
 ```
 
@@ -74,10 +77,10 @@ Each harness file builds its `modules` list once (as today), calls
 `packages.<name>-llmaas`, `devShells.<name>-llmaas`,
 `checks.<name>-llmaas` for `vanilla-dev` and `superpowers`.
 
-Threading `-e CLOUD_TEMPLE_API_TOKEN` into `wrapArgs` here (not in
-`cloud-temple.nix`) matches `creating-harness-parts`: parts contribute
-`config`, not jail args; jailing env vars for runtime secrets is the
-harness/enrichment's job.
+The API key is NOT jailed into the harness: `CLOUD_TEMPLE_API_TOKEN` is left
+to opencode's own credential mechanism (env/`auth.json`). Jailing it via
+`wrapArgs` conflicted with that, so `enrichWithLLMaaS` threads `wrapArgs`
+through unchanged and the `*-llmaas` checks don't export it.
 
 ### Script 1 — `scripts/fetch-cloudtemple-models.py`
 

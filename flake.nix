@@ -292,7 +292,6 @@
               ''
                 set -euo pipefail
                 export HOME=$TMPDIR; mkdir -p $HOME
-                export CLOUD_TEMPLE_API_TOKEN=test-token
 
                 run() {
                   bwrap \
@@ -312,7 +311,6 @@
                     --proc /proc --dev /dev \
                     --bind $TMPDIR $TMPDIR \
                     --setenv HOME $TMPDIR \
-                    --setenv CLOUD_TEMPLE_API_TOKEN $CLOUD_TEMPLE_API_TOKEN \
                     --setenv PATH ${
                       lib.makeBinPath [
                         pkgs.bubblewrap
@@ -413,7 +411,6 @@
               ''
                 set -euo pipefail
                 export HOME=$TMPDIR; mkdir -p $HOME
-                export CLOUD_TEMPLE_API_TOKEN=test-token
 
                 run() {
                   bwrap \
@@ -433,7 +430,6 @@
                     --proc /proc --dev /dev \
                     --bind $TMPDIR $TMPDIR \
                     --setenv HOME $TMPDIR \
-                    --setenv CLOUD_TEMPLE_API_TOKEN $CLOUD_TEMPLE_API_TOKEN \
                     --setenv PATH ${
                       lib.makeBinPath [
                         pkgs.bubblewrap

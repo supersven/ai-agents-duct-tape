@@ -2,3 +2,4 @@
 .worktrees/
 result
 result-*
+scripts/__pycache__/
