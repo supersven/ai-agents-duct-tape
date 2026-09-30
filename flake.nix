@@ -86,12 +86,14 @@
         };
         packages.superpowers = superpowersHarness.package;
         packages.vanilla-dev = vanillaDevHarness.package;
+        packages.vanilla-dev-llmaas = vanillaDevHarness.llmaas.package;
 
         devShells.default = pkgs.mkShell {
           packages = [ self.packages.${system}.default ];
         };
         devShells.superpowers = superpowersHarness.devShell;
         devShells.vanilla-dev = vanillaDevHarness.devShell;
+        devShells.vanilla-dev-llmaas = vanillaDevHarness.llmaas.devShell;
 
         apps = {
           update-types = {
@@ -334,6 +336,64 @@
                 jq -e '.name == "semble-search"' agent.json >/dev/null
                 jq -e '.mode == "subagent"' agent.json >/dev/null
                 jq -e 'any(.permission[]; .permission == "bash" and .action == "allow")' agent.json >/dev/null
+
+                echo ok > $out
+              '';
+
+          vanilla-dev-llmaas =
+            pkgs.runCommand "check-vanilla-dev-llmaas"
+              {
+                nativeBuildInputs = [
+                  pkgs.bubblewrap
+                  pkgs.coreutils
+                  pkgs.bash
+                  pkgs.jq
+                  vanillaDevHarness.llmaas.package
+                ];
+                inherit resolv;
+              }
+              ''
+                set -euo pipefail
+                export HOME=$TMPDIR; mkdir -p $HOME
+                export CLOUD_TEMPLE_API_TOKEN=test-token
+
+                run() {
+                  bwrap \
+                    --die-with-parent \
+                    --tmpfs / \
+                    --ro-bind /nix /nix \
+                    --dir /bin \
+                    --ro-bind /bin/sh /bin/sh \
+                    --dir /usr/bin \
+                    --ro-bind ${pkgs.coreutils}/bin/env /usr/bin/env \
+                    --ro-bind /etc/passwd /etc/passwd \
+                    --ro-bind /etc/group /etc/group \
+                    --ro-bind /etc/hosts /etc/hosts \
+                    --dir /etc/ssl --dir /etc/static/ssl \
+                    --ro-bind $resolv /etc/resolv.conf \
+                    --dir /tmp \
+                    --proc /proc --dev /dev \
+                    --bind $TMPDIR $TMPDIR \
+                    --setenv HOME $TMPDIR \
+                    --setenv CLOUD_TEMPLE_API_TOKEN $CLOUD_TEMPLE_API_TOKEN \
+                    --setenv PATH ${
+                      lib.makeBinPath [
+                        pkgs.bubblewrap
+                        pkgs.coreutils
+                        pkgs.bash
+                      ]
+                    } \
+                    --chdir $TMPDIR \
+                    -- "$@"
+                }
+
+                run ${vanillaDevHarness.llmaas.package}/bin/opencode debug config > config.json
+                jq -e '.provider["cloud-temple"].npm == "@ai-sdk/openai-compatible"' config.json >/dev/null
+                jq -e '.provider["cloud-temple"].options.baseURL == "https://api.ai.cloud-temple.com/v1"' config.json >/dev/null
+                jq -e '.agent.build.model == "cloud-temple/qwen-coder-next:80b"' config.json >/dev/null
+                jq -e '.agent.plan.model == "cloud-temple/qwen3.6:35b"' config.json >/dev/null
+                jq -e '.agent.general.model == "cloud-temple/qwen3.6:27b"' config.json >/dev/null
+                jq -e '.agent["semble-search"].model == "cloud-temple/qwen3.5:9b"' config.json >/dev/null
 
                 echo ok > $out
               '';

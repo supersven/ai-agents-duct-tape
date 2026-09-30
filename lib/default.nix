@@ -22,5 +22,5 @@ in
   inherit generated domain modules;
   inherit (mkHarnessLib) defaultWrapArgs;
   inherit (modules) evalHarness;
-  inherit (mkHarnessLib) mkHarness;
+  inherit (mkHarnessLib) mkHarness enrichWithLLMaaS;
 }

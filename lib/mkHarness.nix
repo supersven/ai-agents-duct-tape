@@ -48,7 +48,7 @@ let
     installPhase = "mkdir -p $out/node_modules; cp -r node_modules/. $out/node_modules";
   };
 in
-{
+rec {
   mkHarness =
     {
       name,
@@ -183,6 +183,20 @@ in
       inherit package;
       inherit (parts) config;
       devShell = pkgs.mkShell { packages = [ package ]; };
+    };
+  enrichWithLLMaaS =
+    {
+      name,
+      modules,
+      wrapArgs ? null,
+    }:
+    mkHarness {
+      name = "${name}-llmaas";
+      modules = modules ++ [
+        (import ../harnesses/parts/cloud-temple.nix { })
+        (import ../harnesses/parts/cloud-temple-agents.nix { })
+      ];
+      wrapArgs = (if wrapArgs == null then defaultWrapArgs else wrapArgs) + " -e CLOUD_TEMPLE_API_TOKEN";
     };
   inherit defaultWrapArgs;
 }
