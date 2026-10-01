@@ -154,14 +154,6 @@
               exec ${scriptsSrc}/fetch-cloudtemple-models.py "$@"
             ''}/bin/update-cloudtemple-models";
           };
-
-          cloudtemple-model-report = {
-            type = "app";
-            program = "${pkgs.writeShellScriptBin "cloudtemple-model-report" ''
-              export PATH=${lib.makeBinPath [ pkgs.python3 ]}:$PATH
-              exec ${scriptsSrc}/cloudtemple-model-report.py "$@"
-            ''}/bin/cloudtemple-model-report";
-          };
         };
 
         checks = {
