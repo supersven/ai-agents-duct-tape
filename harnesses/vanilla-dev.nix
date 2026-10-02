@@ -38,14 +38,8 @@ let
   };
 in
 {
-  inherit (harness) package;
-  devShell = pkgs.mkShell {
-    packages = [ harness.package ];
-  };
+  inherit (harness) package devShell;
   llmaas = {
-    inherit (llmaasHarness) package;
-    devShell = pkgs.mkShell {
-      packages = [ llmaasHarness.package ];
-    };
+    inherit (llmaasHarness) package devShell;
   };
 }

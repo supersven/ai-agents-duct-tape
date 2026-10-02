@@ -55,13 +55,20 @@
         # the semble README (Storage): SEMBLE_CACHE_LOCATION, SEMBLE_MAX_FILE_BYTES,
         # SEMBLE_MODEL_NAME, HF_HOME. Writable: the default cache, HF model cache,
         # and the savings ledger. `-n` for first-run HF model download / git URLs.
-        semble = nixwrap.lib.${system}.wrap {
+        sembleWrapped = nixwrap.lib.${system}.wrap {
           package = llm-agents.packages.${system}.semble;
           wrapArgs =
             "-n -e SEMBLE_CACHE_LOCATION -e SEMBLE_MAX_FILE_BYTES"
             + " -e SEMBLE_MODEL_NAME -e HF_HOME"
             + " -w ~/.cache/semble -w ~/.cache/huggingface -w ~/.semble";
         };
+        # nixwrap.lib.wrap's generated bin/semble has no shebang, so it only
+        # runs via a shell's ENOEXEC-fallback re-exec. opencode's MCP launcher
+        # posix_spawns the "command" path directly (no shell involved), which
+        # fails with ENOEXEC. Re-wrap with a real shebang so direct exec works.
+        semble = pkgs.writeShellScriptBin "semble" ''
+          exec ${sembleWrapped}/bin/semble "$@"
+        '';
         vanillaDevHarness = import ./harnesses/vanilla-dev.nix {
           inherit
             lib

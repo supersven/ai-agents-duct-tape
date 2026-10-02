@@ -182,7 +182,7 @@ rec {
     {
       inherit package;
       inherit (parts) config;
-      devShell = pkgs.mkShell { packages = [ package ]; };
+      devShell = pkgs.mkShell { packages = [ package ] ++ parts.dependencies; };
     };
   enrichWithLLMaaS =
     {

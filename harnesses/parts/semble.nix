@@ -1,7 +1,4 @@
-{
-  semble,
-}:
-{
+{ semble, }: {
   config.opencode.mcp.semble = {
     type = "local";
     # semble (no subcommand) auto-dispatches to the MCP server, matching
