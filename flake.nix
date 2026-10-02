@@ -490,6 +490,70 @@
                 echo ok > $out
               '';
 
+          wire-server-haskell-dev =
+            pkgs.runCommand "check-wire-server-haskell-dev"
+              {
+                nativeBuildInputs = [
+                  pkgs.bubblewrap
+                  pkgs.coreutils
+                  pkgs.bash
+                  pkgs.jq
+                  wireServerHaskellDevHarness.package
+                ];
+                inherit resolv wireHoogleMcp;
+              }
+              ''
+                set -euo pipefail
+                export HOME=$TMPDIR; mkdir -p $HOME
+
+                run() {
+                  bwrap \
+                    --die-with-parent \
+                    --tmpfs / \
+                    --ro-bind /nix /nix \
+                    --dir /bin \
+                    --ro-bind /bin/sh /bin/sh \
+                    --dir /usr/bin \
+                    --ro-bind ${pkgs.coreutils}/bin/env /usr/bin/env \
+                    --ro-bind /etc/passwd /etc/passwd \
+                    --ro-bind /etc/group /etc/group \
+                    --ro-bind /etc/hosts /etc/hosts \
+                    --dir /etc/ssl --dir /etc/static/ssl \
+                    --ro-bind $resolv /etc/resolv.conf \
+                    --dir /tmp \
+                    --proc /proc --dev /dev \
+                    --bind $TMPDIR $TMPDIR \
+                    --setenv HOME $TMPDIR \
+                    --setenv PATH ${
+                      lib.makeBinPath [
+                        pkgs.bubblewrap
+                        pkgs.coreutils
+                        pkgs.bash
+                      ]
+                    } \
+                    --chdir $TMPDIR \
+                    -- "$@"
+                }
+
+                run ${wireServerHaskellDevHarness.package}/bin/opencode debug config > config.json
+                jq -e '.permission.edit == "ask"' config.json >/dev/null
+                jq -e '.mcp["wire-hoogle"].type == "local"' config.json >/dev/null
+                jq -e --arg cmd "${wireHoogleMcp}/bin/wire-hoogle-mcp" \
+                  'any(.mcp["wire-hoogle"].command[]; . == $cmd)' config.json >/dev/null
+                jq -e '.mcp["wire-hoogle"].environment.WIRE_HOOGLE_URL == "https://hoogle.zinfra.io"' config.json >/dev/null
+                jq -e 'any(.instructions[]; endswith("rules/hoogle.md"))' config.json >/dev/null
+                jq -e '.agent | has("hoogle-search")' config.json >/dev/null
+
+                run ${wireServerHaskellDevHarness.package}/bin/opencode debug skill > skills.json
+                jq -e 'any(.[]; .name == "brainstorming")' skills.json >/dev/null
+
+                run ${wireServerHaskellDevHarness.package}/bin/opencode debug agent hoogle-search > agent.json
+                jq -e '.name == "hoogle-search"' agent.json >/dev/null
+                jq -e '.mode == "subagent"' agent.json >/dev/null
+
+                echo ok > $out
+              '';
+
           formatting = treefmtEval.config.build.check self;
         };
       }
