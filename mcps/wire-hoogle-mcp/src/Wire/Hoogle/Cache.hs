@@ -13,9 +13,9 @@ import qualified Data.Text as T
 import Network.HTTP.Client (Manager)
 import Prelude hiding (lookup)
 import Wire.Hoogle.Query (QueryError, QueryParams(..), Server(..), runQuery)
-import Wire.Hoogle.Types (Config, HoogleEntry, truncateEntry)
+import Wire.Hoogle.Types (CachedEntry, Config, OutputEntry, toOutputEntry)
 
-type HoogleCache = AtomicLRU Text [HoogleEntry]
+type HoogleCache = AtomicLRU Text [CachedEntry]
 
 newHoogleCache :: Int -> IO HoogleCache
 newHoogleCache capacity = newAtomicLRU (Just (fromIntegral capacity))
@@ -28,7 +28,7 @@ cacheKey server qp =
       WireServer -> "wire"
       GeneralServer -> "general"
 
-cachedQuery :: Manager -> HoogleCache -> Config -> Server -> QueryParams -> IO (Either QueryError [HoogleEntry])
+cachedQuery :: Manager -> HoogleCache -> Config -> Server -> QueryParams -> IO (Either QueryError [OutputEntry])
 cachedQuery mgr cache cfg server qp = do
   hit <- lookup key cache
   case hit of
@@ -40,4 +40,4 @@ cachedQuery mgr cache cfg server qp = do
         Left err -> pure (Left err)
   where
     key = cacheKey server qp
-    serve = map (truncateEntry (qpFullDocs qp))
+    serve = map (toOutputEntry (qpFullDocs qp))

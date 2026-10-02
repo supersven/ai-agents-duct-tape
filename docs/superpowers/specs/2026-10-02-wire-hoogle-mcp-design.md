@@ -31,10 +31,11 @@ Dependencies: `aeson`, `mcp-server`, `http-client`, `http-client-tls`,
 Modules (small, single-purpose):
 
 - `Wire.Hoogle.Types` — config record; hoogle result JSON types (`FromJSON`);
-  our output shape (`ToJSON`).
+  two output shapes: `CachedEntry` (what the LRU stores: full untruncated
+  docs, mangled link) and `OutputEntry` (what is served; `ToJSON`).
 - `Wire.Hoogle.Query` — HTTP GET to `?mode=json&format=text&hoogle=<q>...`,
   parse via aeson.
-- `Wire.Hoogle.Mangle` — URL mangling (below).
+- `Wire.Hoogle.Mangle` — URL mangling and source-link derivation (below).
 - `Wire.Hoogle.Cache` — `lrucache`-backed LRU wrapper around the parsed
   results, capacity from `HOOGLE_CACHE_MAX_ENTRIES`.
 - `Wire.Hoogle.CLI` — `optparse-applicative` parser (below).
@@ -71,13 +72,14 @@ wrapper) — no custom cache implementation. True LRU: on hit, refresh recency;
 on insert, evict the least-recently-used entries when at capacity.
 
 Capacity is entry-count based (the library caps by count, not bytes);
-configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000. Entries are
-cached **untruncated** (full `docs`): truncation to ~500 chars is applied per
-request in `cachedQuery` via `truncateEntry`, after the (potentially cached)
-fetch. `full_docs` is therefore **not** part of the cache key (server, query,
-count only) — a truncated and a full-docs request for the same search share
-one cache entry and one HTTP fetch; truncation is cheap, HTTP is not. Long
-docs are rare, so caching full docs outweighs the larger per-entry footprint.
+configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000. The cache stores
+**`CachedEntry`**s (full, untruncated `docs`): per request `cachedQuery`
+converts to **`OutputEntry`** via `toOutputEntry`, truncating `docs` to ~500
+chars unless `full_docs` and deriving the `source_link`. `full_docs` is
+therefore **not** part of the cache key (server, query, count only) — a
+truncated and a full-docs request for the same search share one cache entry
+and one HTTP fetch; truncation/derivation is cheap, HTTP is not. Long docs
+are rare, so caching full docs outweighs the larger per-entry footprint.
 Session-scoped; results don't change during a session.
 
 ### CLI
@@ -113,8 +115,17 @@ agents):
   of the ~500-char truncation.
 
 Output: compact JSON array; each element `{package, module, item, docs,
-docs_truncated, link}` (`docs_truncated` is true when `docs` was truncated to
-~500 chars; `link` = mangled docs URL, null if absent).
+docs_truncated, link, source_link}` (`docs_truncated` is true when `docs` was
+truncated to ~500 chars; `link` = mangled docs URL, null if absent;
+`source_link` = derived haddock source page, null if not derivable).
+
+`source_link` is derived from `link` per request (not cached): insert `src/`
+before the page, convert `-` back to `.` in the module name, and drop the
+`#v:`/`#t:` anchor prefix — e.g. `.../html/Data-Aeson-KeyMap.html#v:map` →
+`.../html/src/Data.Aeson.KeyMap.html#map`. Non-module pages (`index.html`,
+`doc-index.html`, ...) yield null. Verified live: the derived URLs resolve on
+both the Wire instance (200) and hackage (redirects to the current package
+version, as the docs links themselves do).
 
 `McpServerInfo.serverInstructions` gives a 2-3 sentence overview of the tool
 and the query-not-search distinction.

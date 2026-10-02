@@ -3,11 +3,12 @@
 module Wire.Hoogle.Types
   ( Config(..)
   , loadConfig
-  , HoogleEntry(..)
+  , CachedEntry(..)
+  , OutputEntry(..)
   , HoogleResult(..)
   , HoogleUrl(..)
   , truncateDocs
-  , truncateEntry
+  , toOutputEntry
   ) where
 
 import Data.Aeson (FromJSON(..), ToJSON(..), object, withObject, (.:), (.:?), (.!=), (.=))
@@ -16,6 +17,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
+import Wire.Hoogle.Mangle (deriveSourceLink)
 
 data Config = Config
   { cfgWireUrl :: Text
@@ -72,24 +74,39 @@ instance FromJSON HoogleResult where
       <*> o .:? "package" .!= HoogleUrl Nothing Nothing
       <*> o .:? "module" .!= HoogleUrl Nothing Nothing
 
-data HoogleEntry = HoogleEntry
-  { hePackage :: Maybe Text
-  , heModule :: Maybe Text
-  , heItem :: Text
-  , heDocs :: Text
-  , heDocsTruncated :: Bool
-  , heLink :: Maybe Text
+-- | What the cache stores: full, untruncated docs, mangled link, and nothing
+-- derived per request (no truncation flag, no source link).
+data CachedEntry = CachedEntry
+  { cePackage :: Maybe Text
+  , ceModule :: Maybe Text
+  , ceItem :: Text
+  , ceDocs :: Text
+  , ceLink :: Maybe Text
   }
   deriving (Eq, Show)
 
-instance ToJSON HoogleEntry where
+-- | What is served to the agent: docs truncated to ~500 chars unless full docs
+-- were requested, plus the derived source link.
+data OutputEntry = OutputEntry
+  { oePackage :: Maybe Text
+  , oeModule :: Maybe Text
+  , oeItem :: Text
+  , oeDocs :: Text
+  , oeDocsTruncated :: Bool
+  , oeLink :: Maybe Text
+  , oeSourceLink :: Maybe Text
+  }
+  deriving (Eq, Show)
+
+instance ToJSON OutputEntry where
   toJSON e = object
-    [ "package" .= hePackage e
-    , "module" .= heModule e
-    , "item" .= heItem e
-    , "docs" .= heDocs e
-    , "docs_truncated" .= heDocsTruncated e
-    , "link" .= heLink e
+    [ "package" .= oePackage e
+    , "module" .= oeModule e
+    , "item" .= oeItem e
+    , "docs" .= oeDocs e
+    , "docs_truncated" .= oeDocsTruncated e
+    , "link" .= oeLink e
+    , "source_link" .= oeSourceLink e
     ]
 
 truncateDocs :: Int -> Text -> (Text, Bool)
@@ -97,8 +114,16 @@ truncateDocs limit docs
   | T.length docs <= limit = (docs, False)
   | otherwise = (T.take limit docs, True)
 
-truncateEntry :: Bool -> HoogleEntry -> HoogleEntry
-truncateEntry fullDocs entry
-  | fullDocs = entry
-  | otherwise = case truncateDocs 500 (heDocs entry) of
-      (docs, truncated) -> entry { heDocs = docs, heDocsTruncated = truncated }
+toOutputEntry :: Bool -> CachedEntry -> OutputEntry
+toOutputEntry fullDocs entry = OutputEntry
+  { oePackage = cePackage entry
+  , oeModule = ceModule entry
+  , oeItem = ceItem entry
+  , oeDocs = docs
+  , oeDocsTruncated = truncated
+  , oeLink = ceLink entry
+  , oeSourceLink = deriveSourceLink =<< ceLink entry
+  }
+  where
+    (docs, truncated) =
+      if fullDocs then (ceDocs entry, False) else truncateDocs 500 (ceDocs entry)

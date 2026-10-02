@@ -59,7 +59,7 @@ toolList = pure
           \Wire Hoogle instance (default) indexes the project's packages; set \
           \'general' to true ONLY for a package not yet in the project (rare). \
           \Results are JSON: package, module, item (signature), docs, \
-          \docs_truncated, link."
+          \docs_truncated, link, source_link."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("query", InputSchemaDefinitionProperty "string" "Hoogle query, not a plain search (see syntax in the tool description)")

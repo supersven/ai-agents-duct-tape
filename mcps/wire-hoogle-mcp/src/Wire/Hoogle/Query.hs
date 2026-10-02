@@ -20,7 +20,7 @@ import Network.HTTP.Client (HttpException, Manager, httpLbs, parseRequest, respo
 import Network.HTTP.Types (statusCode)
 import Network.HTTP.Types.URI (urlEncode)
 import Wire.Hoogle.Mangle (mangleLink)
-import Wire.Hoogle.Types (Config(..), HoogleEntry(..), HoogleResult(..), HoogleUrl(huName))
+import Wire.Hoogle.Types (CachedEntry(..), Config(..), HoogleResult(..), HoogleUrl(huName))
 
 data Server = WireServer | GeneralServer
   deriving (Eq, Show)
@@ -51,7 +51,7 @@ buildSearchUrl base query count =
     <> "&count="
     <> T.pack (show count)
 
-runQuery :: Manager -> Config -> Server -> QueryParams -> IO (Either QueryError [HoogleEntry])
+runQuery :: Manager -> Config -> Server -> QueryParams -> IO (Either QueryError [CachedEntry])
 runQuery mgr cfg server qp =
   case parseRequest (T.unpack url) of
     Left e -> pure (Left (QueryBadUrl (show e)))
@@ -69,12 +69,11 @@ runQuery mgr cfg server qp =
     origin = serverUrl cfg server
     url = buildSearchUrl origin (qpQuery qp) (qpCount qp)
 
-toEntry :: Text -> HoogleResult -> HoogleEntry
-toEntry origin r = HoogleEntry
-  { hePackage = huName (hrPackage r)
-  , heModule = huName (hrModule r)
-  , heItem = hrItem r
-  , heDocs = hrDocs r
-  , heDocsTruncated = False
-  , heLink = mangleLink origin (hrUrl r)
+toEntry :: Text -> HoogleResult -> CachedEntry
+toEntry origin r = CachedEntry
+  { cePackage = huName (hrPackage r)
+  , ceModule = huName (hrModule r)
+  , ceItem = hrItem r
+  , ceDocs = hrDocs r
+  , ceLink = mangleLink origin (hrUrl r)
   }

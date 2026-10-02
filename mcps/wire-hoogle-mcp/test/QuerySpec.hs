@@ -4,7 +4,7 @@ module QuerySpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Wire.Hoogle.Query (buildSearchUrl, toEntry)
-import Wire.Hoogle.Types (HoogleEntry(..), HoogleResult(..), HoogleUrl(..))
+import Wire.Hoogle.Types (CachedEntry(..), HoogleResult(..), HoogleUrl(..))
 
 spec :: Spec
 spec = do
@@ -22,7 +22,6 @@ spec = do
             , hrModule = HoogleUrl (Just "Prelude") Nothing
             }
           entry = toEntry "https://hoogle.zinfra.io" result
-      heItem entry `shouldBe` "map :: (a -> b) -> [a] -> [b]"
-      heDocs entry `shouldBe` "long docs that stay"
-      heDocsTruncated entry `shouldBe` False
-      heLink entry `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/abc-wire-api-0.1.0-doc/foo.html"
+      ceItem entry `shouldBe` "map :: (a -> b) -> [a] -> [b]"
+      ceDocs entry `shouldBe` "long docs that stay"
+      ceLink entry `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/abc-wire-api-0.1.0-doc/foo.html"

@@ -8,7 +8,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
-import Wire.Hoogle.Types (HoogleEntry(..), HoogleResult(..), HoogleUrl(..), truncateDocs, truncateEntry)
+import Wire.Hoogle.Types (CachedEntry(..), HoogleResult(..), HoogleUrl(..), OutputEntry(..), toOutputEntry, truncateDocs)
 
 sampleJson :: BS.ByteString
 sampleJson = T.encodeUtf8 $ T.unlines
@@ -37,24 +37,36 @@ spec = do
       let r1 = rs !! 1
       hrItem r1 `shouldBe` "package wire-api"
       huName (hrPackage r1) `shouldBe` Nothing
-  describe "ToJSON HoogleEntry" $ do
-    it "emits the documented keys incl. docs_truncated" $ do
-      let entry = HoogleEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" "docs" True (Just "https://x")
+  describe "ToJSON OutputEntry" $ do
+    it "emits the documented keys incl. docs_truncated and source_link" $ do
+      let entry = OutputEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" "docs" True (Just "https://x") (Just "https://src")
           text = T.decodeUtf8 (BS.toStrict (Aeson.encode entry))
       text `shouldSatisfy` T.isInfixOf "\"docs_truncated\":true"
       text `shouldSatisfy` T.isInfixOf "\"link\":\"https://x\""
+      text `shouldSatisfy` T.isInfixOf "\"source_link\":\"https://src\""
+    it "emits null for a missing source link" $ do
+      let entry = OutputEntry Nothing Nothing "id" "docs" False Nothing Nothing
+          text = T.decodeUtf8 (BS.toStrict (Aeson.encode entry))
+      text `shouldSatisfy` T.isInfixOf "\"source_link\":null"
   describe "truncateDocs" $ do
     it "leaves short docs untruncated" $
       truncateDocs 10 "short" `shouldBe` ("short", False)
     it "truncates long docs and flags it" $
       truncateDocs 10 (T.replicate 20 "x") `shouldBe` (T.replicate 10 "x", True)
-  describe "truncateEntry" $ do
-    it "leaves short docs untruncated" $
-      truncateEntry False (HoogleEntry (Just "base") (Just "Prelude") "map" "short" False (Just "https://x"))
-        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" "short" False (Just "https://x")
+  describe "toOutputEntry" $ do
+    it "leaves short docs untruncated and derives the source link" $
+      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" "short" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html#v:map"))
+        `shouldBe` OutputEntry
+          (Just "base")
+          (Just "Prelude")
+          "map"
+          "short"
+          False
+          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html#v:map")
+          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.KeyMap.html#map")
     it "truncates long docs and flags it" $
-      truncateEntry False (HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x"))
-        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True (Just "https://x")
+      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing)
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True Nothing Nothing
     it "keeps full docs when fullDocs" $
-      truncateEntry True (HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x"))
-        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x")
+      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just "https://x"))
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") Nothing
