@@ -26,7 +26,7 @@ yet used in the project.
 Cabal project at `mcps/wire-hoogle-mcp/`, one executable `wire-hoogle-mcp`.
 
 Dependencies: `aeson`, `mcp-server`, `http-client`, `http-client-tls`,
-`optparse-applicative`, `text`, `bytestring`, `containers`.
+`optparse-applicative`, `lrucache`, `text`, `bytestring`.
 
 Modules (small, single-purpose):
 
@@ -35,7 +35,8 @@ Modules (small, single-purpose):
 - `Wire.Hoogle.Query` — HTTP GET to `?mode=json&format=text&hoogle=<q>...`,
   parse via aeson.
 - `Wire.Hoogle.Mangle` — URL mangling (below).
-- `Wire.Hoogle.Cache` — in-memory LRU cache (below).
+- `Wire.Hoogle.Cache` — `lrucache`-backed LRU wrapper around the parsed
+  results, capacity from `HOOGLE_CACHE_MAX_ENTRIES`.
 - `Wire.Hoogle.CLI` — `optparse-applicative` parser (below).
 - `Main.hs` — `McpServerInfo` + handlers, `runMcpServerStdio`.
 
@@ -50,7 +51,7 @@ Env vars with baked-in defaults, read at startup:
 
 - `WIRE_HOOGLE_URL` (default `https://hoogle.zinfra.io`)
 - `GENERAL_HOOGLE_URL` (default `https://hoogle.haskell.org`)
-- `HOOGLE_CACHE_MAX_BYTES` (default `134217728`, i.e. 128MB)
+- `HOOGLE_CACHE_MAX_ENTRIES` (default `5000`, see Cache below)
 
 ### Path mangling
 
@@ -65,11 +66,16 @@ URLs pass through untouched.
 
 ### Cache
 
-In-memory LRU. `Data.Map` from query string to `(result, byteSize)` plus an
-access-ordered structure. On hit, refresh recency. On insert, evict the
-least-recently-used entries until the total size is at or below
-`HOOGLE_CACHE_MAX_BYTES`. Session-scoped; results don't change during a
-session.
+In-memory LRU via the `lrucache` library (`Data.Cache.LRU.IO`, mutable IO
+wrapper) — no custom cache implementation. True LRU: on hit, refresh recency;
+on insert, evict the least-recently-used entries when at capacity.
+
+Capacity is entry-count based (the library caps by count, not bytes);
+configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000: with `docs`
+truncated to ~500 chars and default `count=10`, a cached entry averages
+~10–20KB, so 5000 entries land roughly in the ~50–100MB range — a rough
+approximation of the 128MB cap, staying under it. Session-scoped; results
+don't change during a session.
 
 ### CLI
 
