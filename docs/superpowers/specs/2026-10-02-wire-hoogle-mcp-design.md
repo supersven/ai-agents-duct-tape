@@ -1,0 +1,153 @@
+# Wire Hoogle MCP + wire-server-haskell-dev harness
+
+Date: 2026-10-02
+
+## Goal
+
+A Hoogle query MCP server, implemented as a Haskell cabal project, integrated
+as a part of a new `wire-server-haskell-dev` harness. Hoogle covers the gap
+that LSP servers leave open: knowledge about libraries and about functions not
+yet used in the project.
+
+## Background (verified facts that diverge from the feature request)
+
+- The `hoogle` CLI's `search` command (with `--json`) only queries a **local
+  `.hoo` database**; it has no `--server` flag for remote instances. The
+  `hoogle --json "<query>"` format from the request cannot reach the Wire or
+  general hoogle instances.
+- Both hoogle.zinfra.io and hoogle.haskell.org expose their data via an HTTP
+  JSON API only: `?mode=json&format=text&hoogle=<q>&start=<s>&count=<n>`.
+  Neither exposes a downloadable database.
+- Decision (user-approved): the MCP server queries these HTTP JSON APIs
+  directly with `http-client`. No `hoogle` binary dependency.
+
+## Runtime architecture
+
+Cabal project at `mcps/wire-hoogle-mcp/`, one executable `wire-hoogle-mcp`.
+
+Dependencies: `aeson`, `mcp-server`, `http-client`, `http-client-tls`,
+`optparse-applicative`, `text`, `bytestring`, `containers`.
+
+Modules (small, single-purpose):
+
+- `Wire.Hoogle.Types` — config record; hoogle result JSON types (`FromJSON`);
+  our output shape (`ToJSON`).
+- `Wire.Hoogle.Query` — HTTP GET to `?mode=json&format=text&hoogle=<q>...`,
+  parse via aeson.
+- `Wire.Hoogle.Mangle` — URL mangling (below).
+- `Wire.Hoogle.Cache` — in-memory LRU cache (below).
+- `Wire.Hoogle.CLI` — `optparse-applicative` parser (below).
+- `Main.hs` — `McpServerInfo` + handlers, `runMcpServerStdio`.
+
+Uses mcp-server's **manual** `ToolListHandler`/`ToolCallHandler` (not TH
+derivation) for full control of tool descriptions and input schema. `Content`
+has only `ContentText`, so the tool result is the parsed-and-rebuilt JSON
+rendered as a text block.
+
+### Config
+
+Env vars with baked-in defaults, read at startup:
+
+- `WIRE_HOOGLE_URL` (default `https://hoogle.zinfra.io`)
+- `GENERAL_HOOGLE_URL` (default `https://hoogle.haskell.org`)
+- `HOOGLE_CACHE_MAX_BYTES` (default `134217728`, i.e. 128MB)
+
+### Path mangling
+
+The Wire instance returns `file:///nix/store/<hash>-<pkg>-<ver>-doc/...`
+doc URLs (useless to an agent). Verified that hoogle.zinfra.io serves those
+docs under `https://hoogle.zinfra.io/file/nix/store/<hash>-...`.
+
+Mangling rule: for Wire-instance results, rewrite each `url`/`module.url`/
+`package.url` that starts with `file://` by replacing the `file://` prefix
+with `<wireOrigin>/file`, keeping any `#fragment`. General-instance (hackage)
+URLs pass through untouched.
+
+### Cache
+
+In-memory LRU. `Data.Map` from query string to `(result, byteSize)` plus an
+access-ordered structure. On hit, refresh recency. On insert, evict the
+least-recently-used entries until the total size is at or below
+`HOOGLE_CACHE_MAX_BYTES`. Session-scoped; results don't change during a
+session.
+
+### CLI
+
+`optparse-applicative`, one executable with two modes:
+
+- **default (no args)** — run the MCP stdio server. Keeps the harness MCP
+  command as `[ "${wireHoogleMcp}/bin/wire-hoogle-mcp" ]`.
+- **`query <hoogle-query>`** — print the same mangled JSON results to stdout
+  for manual testing. Options: `--general` (general instance), `--count N`
+  (default 10), `--server URL` (override instance URL). Reads the same env
+  defaults; shares the LRU cache.
+
+## Tools
+
+One MCP tool, `hoogle` (manual handler; descriptions/schema crafted for AI
+agents):
+
+- `query` (required, string) — a Hoogle query, *not* a plain search. The
+  description teaches the syntax: bare text (`map`), type signatures
+  (`a -> a`, `Text -> IO ()`), combined text + type
+  (`map :: (a -> b) -> [a] -> [b]`), scope filters `+pkg` / `-pkg`, module
+  filter `+Module`, and `::` for type-only search.
+- `general` (optional, boolean, default false) — search the general hoogle
+  instance (hoogle.haskell.org) for a package not yet in the target project;
+  rare.
+- `count` (optional, integer, default 10) — max results.
+
+Output: compact JSON array; each element `{package, module, item, docs,
+link}` (`link` = mangled docs URL, null if absent). `docs` truncated
+(~500 chars) to keep tool results lean.
+
+`McpServerInfo.serverInstructions` gives a 2-3 sentence overview of the tool
+and the query-not-search distinction.
+
+## Rule (not a skill)
+
+A `rules/hoogle.md` rule (like `rules/semble.md`): when to use the MCP tool,
+wire instance by default, `general` only for packages not yet in the project,
+plus a hoogle-query syntax reminder. No skill — the tool description and
+server instructions already explain the query syntax; a skill would duplicate
+them. Revisit only if agents misuse the tool.
+
+## Nix integration
+
+- `wireHoogleMcp = pkgs.haskellPackages.callCabal2nix "wire-hoogle-mcp"
+  ./mcps/wire-hoogle-mcp {}` in flake.nix. No committed cabal2nix.nix, no
+  update app (IFD verified to work under `nix flake check`). `mcp-server`,
+  `http-client`, `http-client-tls` are all present in nixpkgs `haskellPackages`.
+- Not jailed (we own and trust it; the opencode jail's network covers it).
+- Part `harnesses/parts/hoogle-mcp.nix` (matches sembl.e pattern):
+
+  ```nix
+  { wireHoogleMcp }:
+  {
+    config.opencode.mcp["wire-hoogle"] = {
+      type = "local";
+      command = [ "${wireHoogleMcp}/bin/wire-hoogle-mcp" ];
+      environment = {
+        WIRE_HOOGLE_URL = "https://hoogle.zinfra.io";
+        GENERAL_HOOGLE_URL = "https://hoogle.haskell.org";
+      };
+    };
+    config.rules = [ ./../../rules/hoogle.md ];
+    config.dependencies = [ wireHoogleMcp ];
+  }
+  ```
+
+- Harness `harnesses/wire-server-haskell-dev.nix`: composes `base` +
+  `superpowers` + `be-concise` + `hoogle-mcp`; provides `package`, `devShell`,
+  and an `llmaas` variant (matches every existing harness).
+- flake.nix wiring: `packages`/`devShells` for `wire-server-haskell-dev` and
+  `wire-server-haskell-dev-llmaas`; `checks.wire-server-haskell-dev`
+  (bwrap sandbox → `opencode debug config`, jq assertions on
+  `.mcp["wire-hoogle"]`, rule instruction present, `debug skill` presence)
+  following the vanilla-dev check pattern.
+
+## Verification
+
+`git add -A && nix flake check` (all checks incl. `checks.formatting` must
+pass). Manual: `nix run .#wire-server-haskell-dev` then query the `hoogle`
+tool; `nix run` the MCP package's `query` subcommand directly.
