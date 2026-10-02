@@ -88,6 +88,9 @@ don't change during a session.
   (default 10), `--server URL` (override instance URL). Reads the same env
   defaults; shares the LRU cache.
 
+`optparse-applicative`'s standard `--help` (via `helper`) documents every
+command, option, and default on both modes.
+
 ## Tools
 
 One MCP tool, `hoogle` (manual handler; descriptions/schema crafted for AI
