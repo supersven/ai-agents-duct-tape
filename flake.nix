@@ -80,6 +80,22 @@
             semble
             ;
         };
+        wireHoogleMcp =
+          (pkgs.haskellPackages.callCabal2nix "wire-hoogle-mcp" ./mcps/wire-hoogle-mcp { }).overrideAttrs
+            (_old: {
+              doCheck = true;
+            });
+        wireServerHaskellDevHarness = import ./harnesses/wire-server-haskell-dev.nix {
+          inherit
+            lib
+            pkgs
+            nixwrap
+            opencode
+            agent-skills
+            superpowers
+            wireHoogleMcp
+            ;
+        };
         wireHoogleMcpToolchain = pkgs.mkShell {
           packages = [
             (pkgs.haskellPackages.ghcWithPackages (
@@ -112,6 +128,9 @@
         packages.superpowers-llmaas = superpowersHarness.llmaas.package;
         packages.vanilla-dev = vanillaDevHarness.package;
         packages.vanilla-dev-llmaas = vanillaDevHarness.llmaas.package;
+        packages.wire-hoogle-mcp = wireHoogleMcp;
+        packages.wire-server-haskell-dev = wireServerHaskellDevHarness.package;
+        packages.wire-server-haskell-dev-llmaas = wireServerHaskellDevHarness.llmaas.package;
 
         devShells.default = pkgs.mkShell {
           packages = [ self.packages.${system}.default ];
@@ -120,6 +139,8 @@
         devShells.superpowers-llmaas = superpowersHarness.llmaas.devShell;
         devShells.vanilla-dev = vanillaDevHarness.devShell;
         devShells.vanilla-dev-llmaas = vanillaDevHarness.llmaas.devShell;
+        devShells.wire-server-haskell-dev = wireServerHaskellDevHarness.devShell;
+        devShells.wire-server-haskell-dev-llmaas = wireServerHaskellDevHarness.llmaas.devShell;
         devShells.wire-hoogle-mcp = wireHoogleMcpToolchain;
 
         apps = {
