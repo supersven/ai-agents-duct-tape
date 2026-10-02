@@ -1,0 +1,1 @@
+module Wire.Hoogle.Types where

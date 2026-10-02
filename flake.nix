@@ -80,6 +80,23 @@
             semble
             ;
         };
+        wireHoogleMcpToolchain = pkgs.mkShell {
+          packages = [
+            (pkgs.haskellPackages.ghcWithPackages (
+              ps: with ps; [
+                cabal-install
+                aeson
+                http-client
+                http-client-tls
+                http-types
+                hspec
+                lrucache
+                mcp-server
+                optparse-applicative
+              ]
+            ))
+          ];
+        };
         resolv = pkgs.writeText "resolv.conf" "nameserver 127.0.0.1\n";
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
         scriptsSrc = ./scripts;
@@ -103,6 +120,7 @@
         devShells.superpowers-llmaas = superpowersHarness.llmaas.devShell;
         devShells.vanilla-dev = vanillaDevHarness.devShell;
         devShells.vanilla-dev-llmaas = vanillaDevHarness.llmaas.devShell;
+        devShells.wire-hoogle-mcp = wireHoogleMcpToolchain;
 
         apps = {
           update-types = {
