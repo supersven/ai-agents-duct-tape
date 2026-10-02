@@ -7,17 +7,16 @@ module Wire.Hoogle.Query
   , serverUrl
   , buildSearchUrl
   , runQuery
+  , toEntry
   ) where
 
 import Control.Exception (try)
 import Data.Aeson (eitherDecode)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
-import Network.HTTP.Client (HttpException, Manager, Request, httpLbs, parseRequest, responseBody, responseStatus)
+import Network.HTTP.Client (HttpException, Manager, httpLbs, parseRequest, responseBody, responseStatus)
 import Network.HTTP.Types (statusCode)
 import Network.HTTP.Types.URI (urlEncode)
 import Wire.Hoogle.Mangle (mangleLink)
@@ -37,6 +36,7 @@ data QueryError
   = QueryHttp HttpException
   | QueryBadStatus Int
   | QueryParse String
+  | QueryBadUrl String
   deriving (Show)
 
 serverUrl :: Config -> Server -> Text
@@ -52,24 +52,22 @@ buildSearchUrl base query count =
     <> T.pack (show count)
 
 runQuery :: Manager -> Config -> Server -> QueryParams -> IO (Either QueryError [HoogleEntry])
-runQuery mgr cfg server qp = do
-  let origin = serverUrl cfg server
-      url = buildSearchUrl origin (qpQuery qp) (qpCount qp)
-  response <- try (httpLbs (parseRequestStrict url) mgr)
-  pure $ case response of
-    Left e -> Left (QueryHttp e)
-    Right resp
-      | statusCode (responseStatus resp) /= 200 ->
-          Left (QueryBadStatus (statusCode (responseStatus resp)))
-      | otherwise -> case eitherDecode (responseBody resp) of
-          Left e -> Left (QueryParse e)
-          Right results -> Right (map (toEntry origin (qpFullDocs qp)) results)
+runQuery mgr cfg server qp =
+  case parseRequest (T.unpack url) of
+    Left e -> pure (Left (QueryBadUrl (show e)))
+    Right req -> do
+      response <- try (httpLbs req mgr)
+      pure $ case response of
+        Left e -> Left (QueryHttp e)
+        Right resp
+          | statusCode (responseStatus resp) /= 200 ->
+              Left (QueryBadStatus (statusCode (responseStatus resp)))
+          | otherwise -> case eitherDecode (responseBody resp) of
+              Left e -> Left (QueryParse e)
+              Right results -> Right (map (toEntry origin (qpFullDocs qp)) results)
   where
-    parseRequestStrict :: Text -> Request
-    parseRequestStrict u =
-      case parseRequest (T.unpack u) of
-        Left e -> error ("invalid hoogle URL: " ++ show e)
-        Right r -> r
+    origin = serverUrl cfg server
+    url = buildSearchUrl origin (qpQuery qp) (qpCount qp)
 
 toEntry :: Text -> Bool -> HoogleResult -> HoogleEntry
 toEntry origin fullDocs r = HoogleEntry

@@ -19,7 +19,7 @@ import MCP.Server
   , ToolDefinition(..)
   , runMcpServerStdio
   )
-import Network.HTTP.Client (Manager, newManager)
+import Network.HTTP.Client (Manager, managerResponseTimeout, newManager, responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Wire.Hoogle.Cache (HoogleCache, cachedQuery, newHoogleCache)
 import Wire.Hoogle.Query (QueryParams(..), Server(..))
@@ -27,7 +27,7 @@ import Wire.Hoogle.Types (Config(..))
 
 runServer :: Config -> IO ()
 runServer cfg = do
-  manager <- newManager tlsManagerSettings
+  manager <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 30000000 }
   cache <- newHoogleCache (cfgCacheMaxEntries cfg)
   let serverInfo = McpServerInfo
         { serverName = "wire-hoogle"
@@ -58,7 +58,8 @@ toolList = pure
           \+Module' restricts to modules; '::' forces type-only search). The \
           \Wire Hoogle instance (default) indexes the project's packages; set \
           \'general' to true ONLY for a package not yet in the project (rare). \
-          \Results are JSON: package, module, signature, docs."
+          \Results are JSON: package, module, item (signature), docs, \
+          \docs_truncated, link."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("query", InputSchemaDefinitionProperty "string" "Hoogle query, not a plain search (see syntax in the tool description)")
@@ -81,7 +82,7 @@ toolCall manager cache cfg toolName args
         Just query ->
           let qp = QueryParams
                 { qpQuery = query
-                , qpCount = fromMaybe 10 (readInt =<< lookup "count" args)
+                , qpCount = min 50 (max 1 (fromMaybe 10 (readInt =<< lookup "count" args)))
                 , qpFullDocs = lookup "full_docs" args == Just "true"
                 }
               server = if lookup "general" args == Just "true" then GeneralServer else WireServer

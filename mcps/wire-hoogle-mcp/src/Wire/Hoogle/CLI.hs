@@ -14,7 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as TIO
-import Network.HTTP.Client (newManager)
+import Network.HTTP.Client (managerResponseTimeout, newManager, responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Options.Applicative
   ( Parser
@@ -88,7 +88,7 @@ parseCommand =
 runCommand :: Command -> Config -> IO ()
 runCommand CommandServe cfg = runServer cfg
 runCommand (CommandQuery qo) cfg = do
-  manager <- newManager tlsManagerSettings
+  manager <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 30000000 }
   cache <- newHoogleCache (cfgCacheMaxEntries cfg)
   let server = fromMaybe WireServer (qoServer qo)
       qp = QueryParams (qoQuery qo) (qoCount qo) (qoFullDocs qo)

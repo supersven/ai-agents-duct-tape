@@ -36,7 +36,7 @@ loadConfig :: IO Config
 loadConfig = do
   wireUrl <- envOr "WIRE_HOOGLE_URL" defaultWireUrl
   generalUrl <- envOr "GENERAL_HOOGLE_URL" defaultGeneralUrl
-  cacheMax <- envIntOr "HOOGLE_CACHE_MAX_ENTRIES" defaultCacheMaxEntries
+  cacheMax <- max 1 <$> envIntOr "HOOGLE_CACHE_MAX_ENTRIES" defaultCacheMaxEntries
   pure (Config wireUrl generalUrl cacheMax)
   where
     envOr :: String -> Text -> IO Text
