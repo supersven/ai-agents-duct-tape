@@ -7,6 +7,7 @@ module Wire.Hoogle.Types
   , HoogleResult(..)
   , HoogleUrl(..)
   , truncateDocs
+  , truncateEntry
   ) where
 
 import Data.Aeson (FromJSON(..), ToJSON(..), object, withObject, (.:), (.:?), (.!=), (.=))
@@ -95,3 +96,9 @@ truncateDocs :: Int -> Text -> (Text, Bool)
 truncateDocs limit docs
   | T.length docs <= limit = (docs, False)
   | otherwise = (T.take limit docs, True)
+
+truncateEntry :: Bool -> HoogleEntry -> HoogleEntry
+truncateEntry fullDocs entry
+  | fullDocs = entry
+  | otherwise = case truncateDocs 500 (heDocs entry) of
+      (docs, truncated) -> entry { heDocs = docs, heDocsTruncated = truncated }

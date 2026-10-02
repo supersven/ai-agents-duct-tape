@@ -34,3 +34,6 @@ spec = do
     it "distinguishes different counts" $
       cacheKey WireServer (QueryParams "map" 10 False)
         `shouldNotBe` cacheKey WireServer (QueryParams "map" 20 False)
+    it "does not distinguish fullDocs" $
+      cacheKey WireServer (QueryParams "map" 10 False)
+        `shouldBe` cacheKey WireServer (QueryParams "map" 10 True)

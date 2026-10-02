@@ -71,11 +71,14 @@ wrapper) — no custom cache implementation. True LRU: on hit, refresh recency;
 on insert, evict the least-recently-used entries when at capacity.
 
 Capacity is entry-count based (the library caps by count, not bytes);
-configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000: with `docs`
-truncated to ~500 chars and default `count=10`, a cached entry averages
-~10–20KB, so 5000 entries land roughly in the ~50–100MB range — a rough
-approximation of the 128MB cap, staying under it. Session-scoped; results
-don't change during a session.
+configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000. Entries are
+cached **untruncated** (full `docs`): truncation to ~500 chars is applied per
+request in `cachedQuery` via `truncateEntry`, after the (potentially cached)
+fetch. `full_docs` is therefore **not** part of the cache key (server, query,
+count only) — a truncated and a full-docs request for the same search share
+one cache entry and one HTTP fetch; truncation is cheap, HTTP is not. Long
+docs are rare, so caching full docs outweighs the larger per-entry footprint.
+Session-scoped; results don't change during a session.
 
 ### CLI
 

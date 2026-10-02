@@ -20,7 +20,7 @@ import Network.HTTP.Client (HttpException, Manager, httpLbs, parseRequest, respo
 import Network.HTTP.Types (statusCode)
 import Network.HTTP.Types.URI (urlEncode)
 import Wire.Hoogle.Mangle (mangleLink)
-import Wire.Hoogle.Types (Config(..), HoogleEntry(..), HoogleResult(..), HoogleUrl(huName), truncateDocs)
+import Wire.Hoogle.Types (Config(..), HoogleEntry(..), HoogleResult(..), HoogleUrl(huName))
 
 data Server = WireServer | GeneralServer
   deriving (Eq, Show)
@@ -64,20 +64,17 @@ runQuery mgr cfg server qp =
               Left (QueryBadStatus (statusCode (responseStatus resp)))
           | otherwise -> case eitherDecode (responseBody resp) of
               Left e -> Left (QueryParse e)
-              Right results -> Right (map (toEntry origin (qpFullDocs qp)) results)
+              Right results -> Right (map (toEntry origin) results)
   where
     origin = serverUrl cfg server
     url = buildSearchUrl origin (qpQuery qp) (qpCount qp)
 
-toEntry :: Text -> Bool -> HoogleResult -> HoogleEntry
-toEntry origin fullDocs r = HoogleEntry
+toEntry :: Text -> HoogleResult -> HoogleEntry
+toEntry origin r = HoogleEntry
   { hePackage = huName (hrPackage r)
   , heModule = huName (hrModule r)
   , heItem = hrItem r
-  , heDocs = docs
-  , heDocsTruncated = truncated
+  , heDocs = hrDocs r
+  , heDocsTruncated = False
   , heLink = mangleLink origin (hrUrl r)
   }
-  where
-    (docs, truncated) =
-      if fullDocs then (hrDocs r, False) else truncateDocs 500 (hrDocs r)

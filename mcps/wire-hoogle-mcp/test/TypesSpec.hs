@@ -8,7 +8,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
-import Wire.Hoogle.Types (HoogleEntry(..), HoogleResult(..), HoogleUrl(..), truncateDocs)
+import Wire.Hoogle.Types (HoogleEntry(..), HoogleResult(..), HoogleUrl(..), truncateDocs, truncateEntry)
 
 sampleJson :: BS.ByteString
 sampleJson = T.encodeUtf8 $ T.unlines
@@ -48,3 +48,13 @@ spec = do
       truncateDocs 10 "short" `shouldBe` ("short", False)
     it "truncates long docs and flags it" $
       truncateDocs 10 (T.replicate 20 "x") `shouldBe` (T.replicate 10 "x", True)
+  describe "truncateEntry" $ do
+    it "leaves short docs untruncated" $
+      truncateEntry False (HoogleEntry (Just "base") (Just "Prelude") "map" "short" False (Just "https://x"))
+        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" "short" False (Just "https://x")
+    it "truncates long docs and flags it" $
+      truncateEntry False (HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x"))
+        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True (Just "https://x")
+    it "keeps full docs when fullDocs" $
+      truncateEntry True (HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x"))
+        `shouldBe` HoogleEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x")
