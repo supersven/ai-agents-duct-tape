@@ -85,8 +85,9 @@ don't change during a session.
   command as `[ "${wireHoogleMcp}/bin/wire-hoogle-mcp" ]`.
 - **`query <hoogle-query>`** — print the same mangled JSON results to stdout
   for manual testing. Options: `--general` (general instance), `--count N`
-  (default 10), `--server URL` (override instance URL), `--full-docs`
-  (no truncation). Reads the same env defaults; shares the LRU cache.
+  (default 10), `--full-docs` (no truncation). Mirrors the MCP tool's args.
+  Reads the same env defaults (instance URLs overridable via
+  `WIRE_HOOGLE_URL`/`GENERAL_HOOGLE_URL`); shares the LRU cache.
 
 `optparse-applicative`'s standard `--help` (via `helper`) documents every
 command, option, and default on both modes.
