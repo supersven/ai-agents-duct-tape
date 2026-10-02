@@ -546,7 +546,7 @@ module Wire.Hoogle.Query
   , runQuery
   ) where
 
-import Control.Exception (HttpException, try)
+import Control.Exception (try)
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -554,7 +554,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
-import Network.HTTP.Client (Manager, Request, httpLbs, parseRequest, responseStatus)
+import Network.HTTP.Client (HttpException, Manager, Request, httpLbs, parseRequest, responseStatus)
 import Network.HTTP.Types (statusCode)
 import Network.HTTP.Types.URI (urlEncode)
 import Wire.Hoogle.Mangle (mangleLink)
