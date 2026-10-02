@@ -85,8 +85,8 @@ don't change during a session.
   command as `[ "${wireHoogleMcp}/bin/wire-hoogle-mcp" ]`.
 - **`query <hoogle-query>`** — print the same mangled JSON results to stdout
   for manual testing. Options: `--general` (general instance), `--count N`
-  (default 10), `--server URL` (override instance URL). Reads the same env
-  defaults; shares the LRU cache.
+  (default 10), `--server URL` (override instance URL), `--full-docs`
+  (no truncation). Reads the same env defaults; shares the LRU cache.
 
 `optparse-applicative`'s standard `--help` (via `helper`) documents every
 command, option, and default on both modes.
@@ -105,10 +105,12 @@ agents):
   instance (hoogle.haskell.org) for a package not yet in the target project;
   rare.
 - `count` (optional, integer, default 10) — max results.
+- `full_docs` (optional, boolean, default false) — return full `docs` instead
+  of the ~500-char truncation.
 
 Output: compact JSON array; each element `{package, module, item, docs,
-link}` (`link` = mangled docs URL, null if absent). `docs` truncated
-(~500 chars) to keep tool results lean.
+docs_truncated, link}` (`docs_truncated` is true when `docs` was truncated to
+~500 chars; `link` = mangled docs URL, null if absent).
 
 `McpServerInfo.serverInstructions` gives a 2-3 sentence overview of the tool
 and the query-not-search distinction.
