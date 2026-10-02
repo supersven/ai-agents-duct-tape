@@ -91,7 +91,7 @@ runCommand (CommandQuery qo) cfg = do
   manager <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 30000000 }
   cache <- newHoogleCache (cfgCacheMaxEntries cfg)
   let server = fromMaybe WireServer (qoServer qo)
-      qp = QueryParams (qoQuery qo) (qoCount qo) (qoFullDocs qo)
+      qp = QueryParams (qoQuery qo) (min 50 (max 1 (qoCount qo))) (qoFullDocs qo)
   result <- cachedQuery manager cache cfg server qp
   case result of
     Left err -> TIO.hPutStrLn stderr ("error: " <> T.pack (show err)) >> exitFailure

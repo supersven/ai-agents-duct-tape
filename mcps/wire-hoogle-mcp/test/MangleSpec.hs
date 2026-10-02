@@ -17,5 +17,8 @@ spec = describe "mangleLink" $ do
   it "passes https URLs through untouched" $
     mangleLink origin (Just "https://hackage.haskell.org/package/base/docs/Prelude.html#v:map")
       `shouldBe` Just "https://hackage.haskell.org/package/base/docs/Prelude.html#v:map"
+  it "passes file:// URLs without a leading slash through unchanged" $
+    mangleLink origin (Just "file://nix/store/abc")
+      `shouldBe` Just "file://nix/store/abc"
   it "passes Nothing through" $
     mangleLink origin Nothing `shouldBe` Nothing

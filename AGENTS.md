@@ -61,6 +61,10 @@ These derivations also have dependencies like e.g. LSP servers or linters.
 Each part should be self-sufficient: E.g. if a tool needs some dependencie, its
 module should provide it.
 
+We deliberately do NOT add toolchains (e.g. ghc, cabal) to harness
+dependencies: tools should pick those up from outer layers, e.g. when the
+harness' nix env is started within an existing nix env.
+
 ## New rules
 
 The opencode docs may be outdated. The opencode code is the truth: whenever
