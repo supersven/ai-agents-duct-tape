@@ -115,13 +115,22 @@ docs_truncated, link}` (`docs_truncated` is true when `docs` was truncated to
 `McpServerInfo.serverInstructions` gives a 2-3 sentence overview of the tool
 and the query-not-search distinction.
 
-## Rule (not a skill)
+## Rule and sub-agent (not a skill)
 
 A `rules/hoogle.md` rule (like `rules/semble.md`): when to use the MCP tool,
 wire instance by default, `general` only for packages not yet in the project,
 plus a hoogle-query syntax reminder. No skill — the tool description and
 server instructions already explain the query syntax; a skill would duplicate
 them. Revisit only if agents misuse the tool.
+
+A dedicated sub-agent `agents/hoogle-search.md` (like `agents/semble-search.md`):
+`mode: subagent`, minimal permissions (read only, no bash), system prompt that
+uses the `hoogle` MCP tool with the wire-first / general-only-rare policy and a
+query workflow. It is dispatched by the main agent's model when a fitting
+question appears (driven by its `description` + the rule, not an engine-level
+auto-trigger — same mechanism as `semble-search`). Keeps multi-query research
+out of the main agent's context; in `llmaas` variants it can pin a small/cheap
+model.
 
 ## Nix integration
 
@@ -144,6 +153,7 @@ them. Revisit only if agents misuse the tool.
       };
     };
     config.rules = [ ./../../rules/hoogle.md ];
+    config.agents = [ ./../../agents/hoogle-search.md ];
     config.dependencies = [ wireHoogleMcp ];
   }
   ```
@@ -154,8 +164,8 @@ them. Revisit only if agents misuse the tool.
 - flake.nix wiring: `packages`/`devShells` for `wire-server-haskell-dev` and
   `wire-server-haskell-dev-llmaas`; `checks.wire-server-haskell-dev`
   (bwrap sandbox → `opencode debug config`, jq assertions on
-  `.mcp["wire-hoogle"]`, rule instruction present, `debug skill` presence)
-  following the vanilla-dev check pattern.
+  `.mcp["wire-hoogle"]`, rule instruction present, `.agent has("hoogle-search")`,
+  `debug skill` presence) following the vanilla-dev check pattern.
 
 ## Verification
 
