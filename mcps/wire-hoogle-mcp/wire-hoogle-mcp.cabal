@@ -7,6 +7,7 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Wire.Hoogle.Types
+    Wire.Hoogle.Mangle
   build-depends:
     base >=4.14 && <5
     , aeson >=2 && <3
@@ -33,8 +34,14 @@ test-suite spec
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Spec.hs
+  other-modules:
+    MangleSpec
+    TypesSpec
   build-depends:
     base
-    , hspec >=2 && <3
+    , aeson
+    , bytestring
+    , hspec
+    , text
     , wire-hoogle-mcp
   default-language: GHC2021
