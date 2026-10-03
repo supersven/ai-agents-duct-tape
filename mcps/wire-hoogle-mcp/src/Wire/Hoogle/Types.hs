@@ -61,6 +61,7 @@ data HoogleResult = HoogleResult
   , hrUrl :: Maybe Text
   , hrPackage :: HoogleUrl
   , hrModule :: HoogleUrl
+  , hrType :: Text
   }
   deriving (Eq, Show)
 
@@ -72,6 +73,7 @@ instance FromJSON HoogleResult where
       <*> o .:? "url"
       <*> o .:? "package" .!= HoogleUrl Nothing Nothing
       <*> o .:? "module" .!= HoogleUrl Nothing Nothing
+      <*> o .:? "type" .!= ""
 
 -- | What the cache stores: full, untruncated docs, mangled link, and the
 -- resolved haddock "Source" link. Nothing derived per request (no truncation
@@ -84,6 +86,7 @@ data CachedEntry = CachedEntry
   , ceDocs :: Text
   , ceLink :: Maybe Text
   , ceSourceLink :: Maybe Text
+  , ceType :: Text
   }
   deriving (Eq, Show)
 
@@ -97,6 +100,7 @@ data OutputEntry = OutputEntry
   , oeDocsTruncated :: Bool
   , oeLink :: Maybe Text
   , oeSourceLink :: Maybe Text
+  , oeType :: Maybe Text
   }
   deriving (Eq, Show)
 
@@ -109,6 +113,7 @@ instance ToJSON OutputEntry where
     , "docs_truncated" .= oeDocsTruncated e
     , "link" .= oeLink e
     , "source_link" .= oeSourceLink e
+    , "type" .= oeType e
     ]
 
 truncateDocs :: Int -> Text -> (Text, Bool)
@@ -125,7 +130,9 @@ toOutputEntry fullDocs entry = OutputEntry
   , oeDocsTruncated = truncated
   , oeLink = ceLink entry
   , oeSourceLink = ceSourceLink entry
+  , oeType = type'
   }
   where
     (docs, truncated) =
       if fullDocs then (ceDocs entry, False) else truncateDocs 500 (ceDocs entry)
+    type' = if T.null (ceType entry) then Nothing else Just (ceType entry)

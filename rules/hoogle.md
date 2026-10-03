@@ -10,5 +10,6 @@ servers don't: functions in dependencies that the project doesn't use yet.
 - Default instance is Wire Hoogle (all packages used by the target project).
 - Set `general` to true ONLY when looking for a package not yet part of the
   project — this is rare.
-- Results are structured JSON: package, module, signature (`item`), docs, and
-  a docs link.
+- Results are structured JSON: package, module, signature (`item`), docs, a
+  docs link, and `type` (the hoogle result kind, e.g. `module` for module
+  re-exports; `null` otherwise).

@@ -67,9 +67,9 @@ spec = do
       calls <- newIORef (0 :: Int)
       let pageFetch page = modifyIORef' calls (+ 1) >> pure (Map.singleton "v:forever" "../ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever")
           entries =
-            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever") Nothing
-            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch") Nothing
-            , CachedEntry (Just "base") (Just "Prelude") "no-link" "d" Nothing Nothing
+            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever") Nothing ""
+            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch") Nothing ""
+            , CachedEntry (Just "base") (Just "Prelude") "no-link" "d" Nothing Nothing ""
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of
@@ -85,8 +85,8 @@ spec = do
       cache <- newSourceCache 10
       let pageFetch page = modifyIORef' calls (+ 1) >> pure (Map.singleton "v:x" ("src/Mod.html#x" :: T.Text))
           entries =
-            [ CachedEntry Nothing Nothing "a" "d" (Just "https://h/p.html#v:x") Nothing
-            , CachedEntry Nothing Nothing "b" "d" (Just "https://h/p.html#v:x") Nothing
+            [ CachedEntry Nothing Nothing "a" "d" (Just "https://h/p.html#v:x") Nothing ""
+            , CachedEntry Nothing Nothing "b" "d" (Just "https://h/p.html#v:x") Nothing ""
             ]
       _ <- pageHrefsWith cache pageFetch "https://h/p.html"
       _ <- pageHrefsWith cache pageFetch "https://h/p.html"
@@ -98,8 +98,8 @@ spec = do
             | page == "https://h/Data-Map.html" = pure (Map.singleton "v:map" "src/Data.Map.Strict.html#map")
             | otherwise = pure Map.empty
           entries =
-            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just "https://h/Data-List.html#v:map") Nothing
-            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just "https://h/Data-Map.html#v:map") Nothing
+            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just "https://h/Data-List.html#v:map") Nothing ""
+            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just "https://h/Data-Map.html#v:map") Nothing ""
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of

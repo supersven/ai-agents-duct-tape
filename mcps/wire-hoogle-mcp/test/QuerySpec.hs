@@ -20,8 +20,10 @@ spec = do
             , hrUrl = Just "file:///nix/store/abc-wire-api-0.1.0-doc/foo.html"
             , hrPackage = HoogleUrl (Just "base") Nothing
             , hrModule = HoogleUrl (Just "Prelude") Nothing
+            , hrType = ""
             }
           entry = toEntry "https://hoogle.zinfra.io" result
       ceItem entry `shouldBe` "map :: (a -> b) -> [a] -> [b]"
       ceDocs entry `shouldBe` "long docs that stay"
       ceLink entry `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/abc-wire-api-0.1.0-doc/foo.html"
+      ceType entry `shouldBe` ""
