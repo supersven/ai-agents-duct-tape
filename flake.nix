@@ -546,6 +546,27 @@
                 jq -e 'any(.instructions[]; endswith("rules/hoogle.md"))' config.json >/dev/null
                 jq -e '.agent | has("hoogle-search")' config.json >/dev/null
 
+                # regression guard: the rule must document the real hoogle scope
+                # filters (bare +packagename/-packagename/+Module.Name), not the
+                # broken +pkg/-pkg/+Package/+Module forms.
+                rule=$(jq -r '.instructions[] | select(endswith("rules/hoogle.md"))' config.json)
+                ruletext=$(cat "$rule")
+                for needle in 'map +base' 'map -ghc-internal' "foldl' +Data.List" 'source_link' 'hoogle-search'; do
+                  case "$ruletext" in
+                    *"$needle"*) ;;
+                    *) echo "rule missing '$needle'" >&2; exit 1 ;;
+                  esac
+                done
+                case "$ruletext" in
+                  *'+pkg'*) echo "rule uses broken +pkg" >&2; exit 1 ;;
+                  *'-pkg'*) echo "rule uses broken -pkg" >&2; exit 1 ;;
+                  *'+Package'*) echo "rule uses broken +Package" >&2; exit 1 ;;
+                  *'+Module '*)
+                    echo "rule uses broken +Module (use +Module.Name)" >&2
+                    exit 1
+                    ;;
+                esac
+
                 run ${wireServerHaskellDevHarness.package}/bin/opencode debug skill > skills.json
                 jq -e 'any(.[]; .name == "brainstorming")' skills.json >/dev/null
 

@@ -4,19 +4,24 @@ module CacheSpec (spec) where
 
 import Data.Cache.LRU.IO (AtomicLRU, insert, lookup, newAtomicLRU, toList)
 import Data.IORef (modifyIORef', newIORef, readIORef)
+import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import Network.URI (URI, parseURI)
 import Prelude hiding (lookup)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldNotBe)
 import Wire.Hoogle.Cache (cacheKey, cachedQueryWith, newHoogleCache)
 import Wire.Hoogle.Query (QueryError(..), QueryParams(..), Server(..))
 import Wire.Hoogle.Types (CachedEntry(..), Config(..), OutputEntry(..))
 
+uri :: String -> URI
+uri = fromJust . parseURI
+
 fullEntry :: CachedEntry
 fullEntry = CachedEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" (T.replicate 1000 "x") Nothing Nothing ""
 
 cfg :: Config
-cfg = Config "https://hoogle.zinfra.io" "https://hoogle.haskell.org" 10
+cfg = Config (uri "https://hoogle.zinfra.io") (uri "https://hoogle.haskell.org") 10
 
 spec :: Spec
 spec = do

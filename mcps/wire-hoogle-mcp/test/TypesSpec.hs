@@ -5,10 +5,15 @@ module TypesSpec (spec) where
 import qualified Data.Aeson as Aeson
 import Data.Aeson (eitherDecodeStrict')
 import qualified Data.ByteString as BS
+import Data.Maybe (fromJust)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Network.URI (URI, parseURI)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Wire.Hoogle.Types (CachedEntry(..), HoogleResult(..), HoogleUrl(..), OutputEntry(..), toOutputEntry, truncateDocs)
+
+uri :: String -> URI
+uri = fromJust . parseURI
 
 sampleJson :: BS.ByteString
 sampleJson = T.encodeUtf8 $ T.unlines
@@ -18,7 +23,9 @@ sampleJson = T.encodeUtf8 $ T.unlines
   , "   \"package\":{\"url\":\"https://hackage.haskell.org/package/base\",\"name\":\"base\"},"
   , "   \"item\":\"map :: (a -> b) -> [a] -> [b]\",\"type\":\"\",\"docs\":\"map f xs is ...\"},"
   , "  {\"url\":\"file:///nix/store/h-wire-api-0.1.0-doc/share/doc/wire-api-0.1.0/html/Wire-API.html\","
-  , "   \"module\":{},\"package\":{},\"item\":\"package wire-api\",\"type\":\"package\",\"docs\":\"API types\"}"
+  , "   \"module\":{},\"package\":{},\"item\":\"package wire-api\",\"type\":\"package\",\"docs\":\"API types\"},"
+  , "  {\"url\":\"not a uri\","
+  , "   \"module\":{},\"package\":{},\"item\":\"package x\",\"type\":\"package\",\"docs\":\"bad url\"}"
   , "]"
   ]
 
@@ -33,9 +40,13 @@ spec = do
       huName (hrPackage r0) `shouldBe` Just "base"
       huName (hrModule r0) `shouldBe` Just "Prelude"
       hrType r0 `shouldBe` ""
+      hrUrl r0 `shouldBe` Just (uri "https://hackage.haskell.org/package/base/docs/Prelude.html#v:map")
       hrItem r1 `shouldBe` "package wire-api"
       huName (hrPackage r1) `shouldBe` Nothing
       hrType r1 `shouldBe` "package"
+    it "yields Nothing for an unparseable url" $ do
+      let Right (_ : _ : r2 : _) = eitherDecodeStrict' sampleJson :: Either String [HoogleResult]
+      hrUrl r2 `shouldBe` Nothing
   describe "ToJSON OutputEntry" $ do
     it "emits the documented keys incl. docs_truncated and source_link" $ do
       let entry = OutputEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" "docs" True (Just "https://x") (Just "https://src") (Just "module")
@@ -56,7 +67,7 @@ spec = do
       truncateDocs 10 (T.replicate 20 "x") `shouldBe` (T.replicate 10 "x", True)
   describe "toOutputEntry" $ do
     it "leaves short docs untruncated and passes the cached source link through" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Control.Monad") "forever" "short" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever") (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever") "module")
+      toOutputEntry False (CachedEntry (Just "base") (Just "Control.Monad") "forever" "short" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever")) (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever")) "module")
         `shouldBe` OutputEntry
           (Just "base")
           (Just "Control.Monad")
@@ -73,5 +84,5 @@ spec = do
       toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing Nothing "")
         `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True Nothing Nothing Nothing
     it "keeps full docs when fullDocs" $
-      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just "https://x") (Just "https://src") "package")
+      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just (uri "https://x")) (Just (uri "https://src")) "package")
         `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") (Just "https://src") (Just "package")

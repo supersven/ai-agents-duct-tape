@@ -19,6 +19,7 @@ import qualified Data.Text.Encoding.Error as T
 import Network.HTTP.Client (HttpException, Manager, httpLbs, parseRequest, responseBody, responseStatus)
 import Network.HTTP.Types (statusCode)
 import Network.HTTP.Types.URI (urlEncode)
+import Network.URI (URI, uriToString)
 import Wire.Hoogle.Mangle (mangleLink)
 import Wire.Hoogle.Types (CachedEntry(..), Config(..), HoogleResult(..), HoogleUrl(huName))
 
@@ -39,17 +40,19 @@ data QueryError
   | QueryBadUrl String
   deriving (Show)
 
-serverUrl :: Config -> Server -> Text
+serverUrl :: Config -> Server -> URI
 serverUrl cfg WireServer = cfgWireUrl cfg
 serverUrl cfg GeneralServer = cfgGeneralUrl cfg
 
-buildSearchUrl :: Text -> Text -> Int -> Text
+buildSearchUrl :: URI -> Text -> Int -> Text
 buildSearchUrl base query count =
-  base
+  baseString
     <> "?mode=json&format=text&hoogle="
     <> T.decodeUtf8With T.lenientDecode (urlEncode True (T.encodeUtf8 query))
     <> "&count="
     <> T.pack (show count)
+  where
+    baseString = T.pack (uriToString id base "")
 
 runQuery :: Manager -> Config -> Server -> QueryParams -> IO (Either QueryError [CachedEntry])
 runQuery mgr cfg server qp =
@@ -69,7 +72,7 @@ runQuery mgr cfg server qp =
     origin = serverUrl cfg server
     url = buildSearchUrl origin (qpQuery qp) (qpCount qp)
 
-toEntry :: Text -> HoogleResult -> CachedEntry
+toEntry :: URI -> HoogleResult -> CachedEntry
 toEntry origin r = CachedEntry
   { cePackage = huName (hrPackage r)
   , ceModule = huName (hrModule r)

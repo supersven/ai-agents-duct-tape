@@ -51,6 +51,7 @@ test-suite spec
     TypesSpec
     QuerySpec
     CacheSpec
+    ServerSpec
   build-depends:
     base
     , aeson
@@ -58,6 +59,8 @@ test-suite spec
     , containers
     , hspec
     , lrucache
+    , mcp-server
+    , network-uri
     , tagsoup
     , text
     , wire-hoogle-mcp

@@ -117,8 +117,14 @@ agents):
 - `query` (required, string) — a Hoogle query, *not* a plain search. The
   description teaches the syntax: bare text (`map`), type signatures
   (`a -> a`, `Text -> IO ()`), combined text + type
-  (`map :: (a -> b) -> [a] -> [b]`), scope filters `+pkg` / `-pkg`, module
-  filter `+Module`, and `::` for type-only search.
+  (`map :: (a -> b) -> [a] -> [b]`), scope filters `+packagename` / `-packagename`
+  (bare, e.g. `map +base`, `map -ghc-internal`), module filter `+Module.Name`
+  (e.g. `foldl' +Data.List`), and a leading `::` for type-only search.
+  Divergence from hoogle-haskell.org's wiki (which also accepts `+pkg`/`+Module`
+  spellings): the Wire instance only honours the bare forms — `+pkg base`,
+  `+Package base`, and `-pkg base` return empty / do not exclude. Verified live
+  against both hoogle.zinfra.io and hoogle.haskell.org; the tool description,
+  rule, and sub-agent all teach the bare forms.
 - `general` (optional, boolean, default false) — search the general hoogle
   instance (hoogle.haskell.org) for a package not yet in the target project;
   rare.

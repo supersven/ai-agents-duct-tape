@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Wire.Hoogle.Server (runServer) where
+module Wire.Hoogle.Server (runServer, toolList) where
 
 import qualified Data.Aeson as Aeson (encode)
 import qualified Data.ByteString.Lazy.Char8 as BL8
@@ -38,7 +38,9 @@ runServer cfg = do
             "Provides the 'hoogle' tool for Haskell API lookup. It queries the \
             \Wire Hoogle instance by default and the general instance only when \
             \'general' is set (packages not yet in the project). 'query' is a \
-            \Hoogle query, not a plain search: see the tool description."
+            \Hoogle query, not a plain search: scope results with \
+            \+packagename / -packagename / +Module.Name (see the tool \
+            \description)."
         }
       handlers = McpServerHandlers
         { prompts = Nothing
@@ -56,12 +58,14 @@ toolList = pure
           \query, NOT a plain text search. It supports type signatures \
           \('a -> a', 'Text -> IO ()'), names ('map'), combined \
           \'name :: type' ('readFile :: FilePath -> IO String'), and scope \
-          \filters ('+pkg'/'+Package' restrict to packages, '-pkg' excludes, \
-          \+Module' restricts to modules; '::' forces type-only search). The \
-          \Wire Hoogle instance (default) indexes the project's packages; set \
-          \'general' to true ONLY for a package not yet in the project (rare). \
-          \Results are JSON: package, module, item (signature), docs, \
-          \docs_truncated, link, source_link, type."
+          \filters: '+packagename' restricts to a package (e.g. 'map +base'), \
+          \'-packagename' excludes one (e.g. 'map -ghc-internal'), and \
+          \'+Module.Name' restricts to a module (e.g. 'foldl' +Data.List'). \
+          \A leading '::' forces a type-only search. The Wire Hoogle instance \
+          \(default) indexes the project's packages; set 'general' to true \
+          \ONLY for a package not yet in the project (rare). Results are JSON: \
+          \package, module, item (signature), docs, docs_truncated, link, \
+          \source_link, type."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("query", InputSchemaDefinitionProperty "string" "Hoogle query, not a plain search (see syntax in the tool description)")

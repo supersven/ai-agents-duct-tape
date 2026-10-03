@@ -9,30 +9,36 @@ module Wire.Hoogle.Types
   , HoogleUrl(..)
   , truncateDocs
   , toOutputEntry
+  , uriToText
   ) where
 
 import Data.Aeson (FromJSON(..), ToJSON(..), object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Aeson.Types (Parser)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Network.URI (URI, parseURI, uriToString)
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
 data Config = Config
-  { cfgWireUrl :: Text
-  , cfgGeneralUrl :: Text
+  { cfgWireUrl :: URI
+  , cfgGeneralUrl :: URI
   , cfgCacheMaxEntries :: Int
   }
   deriving (Eq, Show)
 
-defaultWireUrl :: Text
-defaultWireUrl = "https://hoogle.zinfra.io"
+defaultWireUrl :: URI
+defaultWireUrl = parseURIorDie "https://hoogle.zinfra.io"
 
-defaultGeneralUrl :: Text
-defaultGeneralUrl = "https://hoogle.haskell.org"
+defaultGeneralUrl :: URI
+defaultGeneralUrl = parseURIorDie "https://hoogle.haskell.org"
 
 defaultCacheMaxEntries :: Int
 defaultCacheMaxEntries = 5000
+
+parseURIorDie :: String -> URI
+parseURIorDie s = fromMaybe (error ("invalid default hoogle URL: " ++ s)) (parseURI s)
 
 loadConfig :: IO Config
 loadConfig = do
@@ -41,24 +47,28 @@ loadConfig = do
   cacheMax <- max 1 <$> envIntOr "HOOGLE_CACHE_MAX_ENTRIES" defaultCacheMaxEntries
   pure (Config wireUrl generalUrl cacheMax)
   where
-    envOr :: String -> Text -> IO Text
-    envOr name def = maybe def T.pack <$> lookupEnv name
+    envOr :: String -> URI -> IO URI
+    envOr name def = do
+      v <- lookupEnv name
+      pure (maybe def (fromMaybe def . parseURI) v)
     envIntOr :: String -> Int -> IO Int
     envIntOr name def = do
       v <- lookupEnv name
       pure (maybe def (fromMaybe def . readMaybe) v)
 
-data HoogleUrl = HoogleUrl { huName :: Maybe Text, huUrl :: Maybe Text }
+data HoogleUrl = HoogleUrl { huName :: Maybe Text, huUrl :: Maybe URI }
   deriving (Eq, Show)
 
 instance FromJSON HoogleUrl where
-  parseJSON = withObject "HoogleUrl" $ \o ->
-    HoogleUrl <$> o .:? "name" <*> o .:? "url"
+  parseJSON = withObject "HoogleUrl" $ \o -> do
+    name <- o .:? "name"
+    url <- o .:? "url" :: Parser (Maybe Text)
+    pure (HoogleUrl name (url >>= parseURI . T.unpack))
 
 data HoogleResult = HoogleResult
   { hrItem :: Text
   , hrDocs :: Text
-  , hrUrl :: Maybe Text
+  , hrUrl :: Maybe URI
   , hrPackage :: HoogleUrl
   , hrModule :: HoogleUrl
   , hrType :: Text
@@ -66,14 +76,14 @@ data HoogleResult = HoogleResult
   deriving (Eq, Show)
 
 instance FromJSON HoogleResult where
-  parseJSON = withObject "HoogleResult" $ \o ->
-    HoogleResult
-      <$> o .: "item"
-      <*> o .:? "docs" .!= ""
-      <*> o .:? "url"
-      <*> o .:? "package" .!= HoogleUrl Nothing Nothing
-      <*> o .:? "module" .!= HoogleUrl Nothing Nothing
-      <*> o .:? "type" .!= ""
+  parseJSON = withObject "HoogleResult" $ \o -> do
+    item <- o .: "item"
+    docs <- o .:? "docs" .!= ""
+    url <- o .:? "url" :: Parser (Maybe Text)
+    package <- o .:? "package" .!= HoogleUrl Nothing Nothing
+    module' <- o .:? "module" .!= HoogleUrl Nothing Nothing
+    type' <- o .:? "type" .!= ""
+    pure (HoogleResult item docs (url >>= parseURI . T.unpack) package module' type')
 
 -- | What the cache stores: full, untruncated docs, mangled link, and the
 -- resolved haddock "Source" link. Nothing derived per request (no truncation
@@ -84,8 +94,8 @@ data CachedEntry = CachedEntry
   , ceModule :: Maybe Text
   , ceItem :: Text
   , ceDocs :: Text
-  , ceLink :: Maybe Text
-  , ceSourceLink :: Maybe Text
+  , ceLink :: Maybe URI
+  , ceSourceLink :: Maybe URI
   , ceType :: Text
   }
   deriving (Eq, Show)
@@ -116,6 +126,10 @@ instance ToJSON OutputEntry where
     , "type" .= oeType e
     ]
 
+-- | Render a 'URI' to its canonical string form.
+uriToText :: URI -> Text
+uriToText u = T.pack (uriToString id u "")
+
 truncateDocs :: Int -> Text -> (Text, Bool)
 truncateDocs limit docs
   | T.length docs <= limit = (docs, False)
@@ -128,8 +142,8 @@ toOutputEntry fullDocs entry = OutputEntry
   , oeItem = ceItem entry
   , oeDocs = docs
   , oeDocsTruncated = truncated
-  , oeLink = ceLink entry
-  , oeSourceLink = ceSourceLink entry
+  , oeLink = uriToText <$> ceLink entry
+  , oeSourceLink = uriToText <$> ceSourceLink entry
   , oeType = type'
   }
   where

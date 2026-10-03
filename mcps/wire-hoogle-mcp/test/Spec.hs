@@ -5,6 +5,7 @@ import Test.Hspec (hspec)
 import qualified CacheSpec
 import qualified MangleSpec
 import qualified QuerySpec
+import qualified ServerSpec
 import qualified SourceSpec
 import qualified TypesSpec
 
@@ -15,3 +16,4 @@ main = hspec $ do
   TypesSpec.spec
   QuerySpec.spec
   CacheSpec.spec
+  ServerSpec.spec

@@ -4,10 +4,18 @@ module SourceSpec (spec) where
 
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust)
 import qualified Data.Text as T
+import Network.URI (URI, parseURI, parseURIReference, uriToString)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Wire.Hoogle.Source (extractSourceLinks, newSourceCache, pageHrefsWith, resolveHref, resolveSourceLinksWith)
-import Wire.Hoogle.Types (CachedEntry(..))
+import Wire.Hoogle.Types (CachedEntry(..), uriToText)
+
+uri :: String -> URI
+uri = fromJust . parseURI
+
+uriRef :: String -> URI
+uriRef = fromJust . parseURIReference
 
 spec :: Spec
 spec = do
@@ -54,27 +62,30 @@ spec = do
           [ ("t:Bool", "src/GHC.Types.html#Bool") ]
   describe "resolveHref" $ do
     it "resolves a same-directory relative Source href" $
-      resolveHref "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html" "src/Data.Aeson.KeyMap.html#map"
-        `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.KeyMap.html#map"
+      uriToText (resolveHref (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html") (uriRef "src/Data.Aeson.KeyMap.html#map"))
+        `shouldBe` "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.KeyMap.html#map"
     it "resolves a ../ Source href to the sibling package" $
-      resolveHref "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html" "../ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"
-        `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"
+      uriToText (resolveHref (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html") (uriRef "../ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"))
+        `shouldBe` "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"
     it "resolves an absolute-path hackage Source href" $
-      resolveHref "https://hackage.haskell.org/package/base/docs/Control-Monad.html" "/package/ghc-internal-9.1401.0/docs/src/GHC.Internal.Control.Monad.html#forever"
-        `shouldBe` Just "https://hackage.haskell.org/package/ghc-internal-9.1401.0/docs/src/GHC.Internal.Control.Monad.html#forever"
+      uriToText (resolveHref (uri "https://hackage.haskell.org/package/base/docs/Control-Monad.html") (uriRef "/package/ghc-internal-9.1401.0/docs/src/GHC.Internal.Control.Monad.html#forever"))
+        `shouldBe` "https://hackage.haskell.org/package/ghc-internal-9.1401.0/docs/src/GHC.Internal.Control.Monad.html#forever"
+    it "leaves an absolute file:// href on the Wire origin untouched" $
+      uriToText (resolveHref (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/IncipitCore.html") (uri "file:///nix/store/y-polysemy-1.9.2.0-doc/src/Polysemy.Resource.html#bracket"))
+        `shouldBe` "file:///nix/store/y-polysemy-1.9.2.0-doc/src/Polysemy.Resource.html#bracket"
   describe "resolveSourceLinksWith" $ do
     it "fills ceSourceLink from the stubbed page and leaves unlinkable entries alone" $ do
       calls <- newIORef (0 :: Int)
       let pageFetch page = modifyIORef' calls (+ 1) >> pure (Map.singleton "v:forever" "../ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever")
           entries =
-            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever") Nothing ""
-            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch") Nothing ""
+            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever")) Nothing ""
+            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch")) Nothing ""
             , CachedEntry (Just "base") (Just "Prelude") "no-link" "d" Nothing Nothing ""
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of
         [e0, e1, e2] -> do
-          ceSourceLink e0 `shouldBe` Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"
+          uriToText (fromJust (ceSourceLink e0)) `shouldBe` "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever"
           ceSourceLink e1 `shouldBe` Nothing
           ceSourceLink e2 `shouldBe` Nothing
         _ -> error "expected three entries"
@@ -84,34 +95,32 @@ spec = do
       calls <- newIORef (0 :: Int)
       cache <- newSourceCache 10
       let pageFetch page = modifyIORef' calls (+ 1) >> pure (Map.singleton "v:x" ("src/Mod.html#x" :: T.Text))
-          entries =
-            [ CachedEntry Nothing Nothing "a" "d" (Just "https://h/p.html#v:x") Nothing ""
-            , CachedEntry Nothing Nothing "b" "d" (Just "https://h/p.html#v:x") Nothing ""
-            ]
-      _ <- pageHrefsWith cache pageFetch "https://h/p.html"
-      _ <- pageHrefsWith cache pageFetch "https://h/p.html"
+          page = uri "https://h/p.html"
+      _ <- pageHrefsWith cache pageFetch page
+      _ <- pageHrefsWith cache pageFetch page
       n <- readIORef calls
       n `shouldBe` 1
     it "resolves the same name on different pages independently" $ do
       let pageFetch page
-            | page == "https://h/Data-List.html" = pure (Map.singleton "v:map" "src/Data.List.html#map")
-            | page == "https://h/Data-Map.html" = pure (Map.singleton "v:map" "src/Data.Map.Strict.html#map")
+            | uriToString id page "" == "https://h/Data-List.html" = pure (Map.singleton "v:map" "src/Data.List.html#map")
+            | uriToString id page "" == "https://h/Data-Map.html" = pure (Map.singleton "v:map" "src/Data.Map.Strict.html#map")
             | otherwise = pure Map.empty
           entries =
-            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just "https://h/Data-List.html#v:map") Nothing ""
-            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just "https://h/Data-Map.html#v:map") Nothing ""
+            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just (uri "https://h/Data-List.html#v:map")) Nothing ""
+            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just (uri "https://h/Data-Map.html#v:map")) Nothing ""
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of
         [e0, e1] -> do
-          ceSourceLink e0 `shouldBe` Just "https://h/src/Data.List.html#map"
-          ceSourceLink e1 `shouldBe` Just "https://h/src/Data.Map.Strict.html#map"
+          uriToText (fromJust (ceSourceLink e0)) `shouldBe` "https://h/src/Data.List.html#map"
+          uriToText (fromJust (ceSourceLink e1)) `shouldBe` "https://h/src/Data.Map.Strict.html#map"
         _ -> error "expected two entries"
     it "does not cache an empty page map (transient fetch failure)" $ do
       calls <- newIORef (0 :: Int)
       cache <- newSourceCache 10
       let pageFetch page = modifyIORef' calls (+ 1) >> pure Map.empty
-      _ <- pageHrefsWith cache pageFetch "https://h/p.html"
-      _ <- pageHrefsWith cache pageFetch "https://h/p.html"
+          page = uri "https://h/p.html"
+      _ <- pageHrefsWith cache pageFetch page
+      _ <- pageHrefsWith cache pageFetch page
       n <- readIORef calls
       n `shouldBe` 2

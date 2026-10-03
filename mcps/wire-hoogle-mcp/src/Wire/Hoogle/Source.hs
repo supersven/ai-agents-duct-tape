@@ -29,10 +29,10 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import Network.HTTP.Client (HttpException, Manager, httpLbs, parseRequest, responseBody, responseStatus)
 import Network.HTTP.Types (statusCode)
-import Network.URI (parseURI, parseURIReference, relativeTo, uriToString)
+import Network.URI (URI(..), parseURIReference, relativeTo)
 import Prelude hiding (lookup)
 import Text.HTML.TagSoup (Tag(..), parseTags)
-import Wire.Hoogle.Types (CachedEntry(..))
+import Wire.Hoogle.Types (CachedEntry(..), uriToText)
 
 type SourceCache = AtomicLRU Text (Map Text Text)
 
@@ -47,32 +47,39 @@ resolveSourceLinks mgr cache = resolveSourceLinksWith (pageHrefs mgr cache)
 
 -- | @resolveSourceLinks@ with the docs-page fetch abstracted out, so tests can
 -- stub it.
-resolveSourceLinksWith :: (Text -> IO (Map Text Text)) -> [CachedEntry] -> IO [CachedEntry]
+resolveSourceLinksWith :: (URI -> IO (Map Text Text)) -> [CachedEntry] -> IO [CachedEntry]
 resolveSourceLinksWith pageFetch = mapM (resolveEntry pageFetch)
 
-resolveEntry :: (Text -> IO (Map Text Text)) -> CachedEntry -> IO CachedEntry
+resolveEntry :: (URI -> IO (Map Text Text)) -> CachedEntry -> IO CachedEntry
 resolveEntry pageFetch entry =
   case ceLink entry of
     Nothing -> pure entry
-    Just link -> do
-      let (page, frag) = T.breakOn "#" link
-      if T.null (T.drop 1 frag)
+    Just link ->
+      let page = link { uriFragment = "" }
+          frag = dropHash (uriFragment link)
+      in if null frag
         then pure entry
         else do
           hrefs <- pageFetch page
           let source = do
-                href <- Map.lookup (T.drop 1 frag) hrefs
-                resolveHref page href
+                href <- Map.lookup (T.pack frag) hrefs
+                ref <- parseURIReference (T.unpack href)
+                pure (resolveHref page ref)
           pure entry { ceSourceLink = source }
+  where
+    -- | network-uri's @uriFragment@ includes the leading '#', but haddock
+    -- anchors are stored without it.
+    dropHash ('#' : rest) = rest
+    dropHash s = s
 
 -- | Fetch a docs page's anchor -> source-href map, caching per page URL.
-pageHrefs :: Manager -> SourceCache -> Text -> IO (Map Text Text)
+pageHrefs :: Manager -> SourceCache -> URI -> IO (Map Text Text)
 pageHrefs mgr cache = pageHrefsWith cache (fetchPage mgr)
 
 -- | @pageHrefs@ with the page fetch abstracted out, so tests can stub it.
-pageHrefsWith :: SourceCache -> (Text -> IO (Map Text Text)) -> Text -> IO (Map Text Text)
+pageHrefsWith :: SourceCache -> (URI -> IO (Map Text Text)) -> URI -> IO (Map Text Text)
 pageHrefsWith cache fetchPage page = do
-  hit <- lookup page cache
+  hit <- lookup (uriToText page) cache
   case hit of
     Just m -> pure m
     Nothing -> do
@@ -82,11 +89,11 @@ pageHrefsWith cache fetchPage page = do
       -- retried on the next query, not pinned for the session.
       if Map.null m
         then pure m
-        else insert page m cache >> pure m
+        else insert (uriToText page) m cache >> pure m
 
-fetchPage :: Manager -> Text -> IO (Map Text Text)
+fetchPage :: Manager -> URI -> IO (Map Text Text)
 fetchPage mgr url =
-  case parseRequest (T.unpack url) of
+  case parseRequest (T.unpack (uriToText url)) of
     Left _ -> pure Map.empty
     Right req -> do
       resp <- try (httpLbs req mgr)
@@ -133,8 +140,5 @@ extractSourceLinks html = go (parseTags (T.unpack html)) Nothing Map.empty
         isPrefixOf p s = take (length p) s == p
 
 -- | Resolve a (possibly relative) @Source@ href against the docs page URL.
-resolveHref :: Text -> Text -> Maybe Text
-resolveHref page href = do
-  base <- parseURI (T.unpack page)
-  ref <- parseURIReference (T.unpack href)
-  pure (T.pack (uriToString id (relativeTo ref base) ""))
+resolveHref :: URI -> URI -> URI
+resolveHref page ref = relativeTo ref page
