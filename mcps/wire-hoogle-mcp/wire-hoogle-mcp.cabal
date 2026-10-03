@@ -12,6 +12,9 @@ library
     Wire.Hoogle.Cache
     Wire.Hoogle.Server
     Wire.Hoogle.CLI
+    Paths_wire_hoogle_mcp
+  autogen-modules:
+    Paths_wire_hoogle_mcp
   build-depends:
     base >=4.14 && <5
     , aeson >=2 && <3

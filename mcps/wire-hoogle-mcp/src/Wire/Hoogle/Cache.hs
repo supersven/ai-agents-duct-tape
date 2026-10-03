@@ -5,6 +5,7 @@ module Wire.Hoogle.Cache
   , newHoogleCache
   , cacheKey
   , cachedQuery
+  , cachedQueryWith
   ) where
 
 import Data.Cache.LRU.IO (AtomicLRU, insert, lookup, newAtomicLRU)
@@ -29,12 +30,24 @@ cacheKey server qp =
       GeneralServer -> "general"
 
 cachedQuery :: Manager -> HoogleCache -> Config -> Server -> QueryParams -> IO (Either QueryError [OutputEntry])
-cachedQuery mgr cache cfg server qp = do
+cachedQuery mgr cache cfg server qp = cachedQueryWith (runQuery mgr cfg) cache cfg server qp
+
+-- | @cachedQuery@ with the network fetch abstracted out, so tests can stub it.
+-- Caches full @CachedEntry@s; serves @OutputEntry@s (truncation + source-link
+-- derivation applied per request via 'toOutputEntry').
+cachedQueryWith
+  :: (Server -> QueryParams -> IO (Either QueryError [CachedEntry]))
+  -> HoogleCache
+  -> Config
+  -> Server
+  -> QueryParams
+  -> IO (Either QueryError [OutputEntry])
+cachedQueryWith fetch cache cfg server qp = do
   hit <- lookup key cache
   case hit of
     Just entries -> pure (Right (serve entries))
     Nothing -> do
-      result <- runQuery mgr cfg server qp
+      result <- fetch server qp
       case result of
         Right full -> insert key full cache >> pure (Right (serve full))
         Left err -> pure (Left err)

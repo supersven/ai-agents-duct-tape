@@ -110,7 +110,8 @@ agents):
 - `general` (optional, boolean, default false) — search the general hoogle
   instance (hoogle.haskell.org) for a package not yet in the target project;
   rare.
-- `count` (optional, integer, default 10) — max results.
+- `count` (optional, integer, default 10) — max results, clamped to 1..50 (both
+  the tool call and the CLI).
 - `full_docs` (optional, boolean, default false) — return full `docs` instead
   of the ~500-char truncation.
 

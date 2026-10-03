@@ -59,7 +59,7 @@ data Command = CommandServe | CommandQuery QueryOptions
 queryParser :: Parser QueryOptions
 queryParser = QueryOptions
   <$> (T.pack <$> strArgument (metavar "QUERY" <> help "Hoogle query, not a plain search (see --help)"))
-  <*> option auto (long "count" <> short 'n' <> value 10 <> metavar "N" <> help "Maximum number of results (default: 10)")
+  <*> option auto (long "count" <> short 'n' <> value 10 <> metavar "N" <> help "Maximum number of results, clamped to 1..50 (default: 10)")
   <*> switch (long "full-docs" <> help "Return full docs instead of truncating to ~500 chars")
   <*> (flag Nothing (Just GeneralServer) (long "general" <> help "Search the general hoogle instance (hoogle.haskell.org) instead of Wire"))
 

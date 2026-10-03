@@ -28,13 +28,10 @@ spec = do
     it "parses both result shapes" $ do
       let results = eitherDecodeStrict' sampleJson :: Either String [HoogleResult]
       results `shouldSatisfy` either (const False) (const True)
-      let Right rs = results
-      length rs `shouldBe` 2
-      let r0 = head rs
+      let Right (r0 : r1 : _) = results
       hrItem r0 `shouldBe` "map :: (a -> b) -> [a] -> [b]"
       huName (hrPackage r0) `shouldBe` Just "base"
       huName (hrModule r0) `shouldBe` Just "Prelude"
-      let r1 = rs !! 1
       hrItem r1 `shouldBe` "package wire-api"
       huName (hrPackage r1) `shouldBe` Nothing
   describe "ToJSON OutputEntry" $ do

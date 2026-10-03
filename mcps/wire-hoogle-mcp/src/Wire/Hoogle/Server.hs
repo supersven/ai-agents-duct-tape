@@ -9,6 +9,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Text.Read (decimal)
+import Data.Version (showVersion)
 import MCP.Server
   ( Content(..)
   , Error(..)
@@ -21,6 +22,7 @@ import MCP.Server
   )
 import Network.HTTP.Client (Manager, managerResponseTimeout, newManager, responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Paths_wire_hoogle_mcp (version)
 import Wire.Hoogle.Cache (HoogleCache, cachedQuery, newHoogleCache)
 import Wire.Hoogle.Query (QueryParams(..), Server(..))
 import Wire.Hoogle.Types (Config(..))
@@ -31,7 +33,7 @@ runServer cfg = do
   cache <- newHoogleCache (cfgCacheMaxEntries cfg)
   let serverInfo = McpServerInfo
         { serverName = "wire-hoogle"
-        , serverVersion = "0.1.0.0"
+        , serverVersion = T.pack (showVersion version)
         , serverInstructions =
             "Provides the 'hoogle' tool for Haskell API lookup. It queries the \
             \Wire Hoogle instance by default and the general instance only when \
@@ -64,7 +66,7 @@ toolList = pure
           { properties =
               [ ("query", InputSchemaDefinitionProperty "string" "Hoogle query, not a plain search (see syntax in the tool description)")
               , ("general", InputSchemaDefinitionProperty "boolean" "Search the general hoogle instance (hoogle.haskell.org) instead of Wire; only for packages not yet in the project")
-              , ("count", InputSchemaDefinitionProperty "integer" "Maximum number of results (default: 10)")
+              , ("count", InputSchemaDefinitionProperty "integer" "Maximum number of results, clamped to 1..50 (default: 10)")
               , ("full_docs", InputSchemaDefinitionProperty "boolean" "Return full docs instead of truncating to ~500 chars")
               ]
           , required = [ "query" ]
