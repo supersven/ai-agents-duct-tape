@@ -17,7 +17,7 @@ import Network.HTTP.Client (Manager)
 import Prelude hiding (lookup)
 import Wire.Hoogle.Query (QueryError, QueryParams(..), Server(..), runQuery)
 import Wire.Hoogle.Source (SourceCache, newSourceCache, resolveSourceLinks)
-import Wire.Hoogle.Types (CachedEntry, Config, OutputEntry, toOutputEntry)
+import Wire.Hoogle.Types (CachedEntry, Config, OutputEntry, dedupeBySourceLink, toOutputEntry)
 
 type HoogleCache = AtomicLRU Text [CachedEntry]
 
@@ -60,7 +60,8 @@ cachedQuery mgr caches cfg server qp =
 
 -- | @cachedQuery@ with the network fetch abstracted out, so tests can stub it.
 -- Caches full @CachedEntry@s (including the resolved source link); serves
--- @OutputEntry@s (truncation applied per request via 'toOutputEntry').
+-- @OutputEntry@s (truncation applied per request via 'toOutputEntry'). Re-export
+-- duplicates (identical source links) are collapsed once during the cache fill.
 cachedQueryWith
   :: (Server -> QueryParams -> IO (Either QueryError [CachedEntry]))
   -> HoogleCache
@@ -75,7 +76,9 @@ cachedQueryWith fetch cache cfg server qp = do
     Nothing -> do
       result <- fetch server qp
       case result of
-        Right full -> insert key full cache >> pure (Right (serve full))
+        Right full ->
+          let full' = dedupeBySourceLink full
+          in insert key full' cache >> pure (Right (serve full'))
         Left err -> pure (Left err)
   where
     key = cacheKey server qp

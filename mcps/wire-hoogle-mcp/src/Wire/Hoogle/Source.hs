@@ -16,6 +16,7 @@ module Wire.Hoogle.Source
   , pageHrefsWith
   , extractSourceLinks
   , resolveHref
+  , normalizeSourceLink
   ) where
 
 import Control.Exception (try)
@@ -64,7 +65,7 @@ resolveEntry pageFetch entry =
           let source = do
                 href <- Map.lookup (T.pack frag) hrefs
                 ref <- parseURIReference (T.unpack href)
-                pure (resolveHref page ref)
+                pure (normalizeSourceLink (resolveHref page ref))
           pure entry { ceSourceLink = source }
   where
     -- | network-uri's @uriFragment@ includes the leading '#', but haddock
@@ -142,3 +143,15 @@ extractSourceLinks html = go (parseTags (T.unpack html)) Nothing Map.empty
 -- | Resolve a (possibly relative) @Source@ href against the docs page URL.
 resolveHref :: URI -> URI -> URI
 resolveHref page ref = relativeTo ref page
+
+-- | Collapse repeated slashes in the path. Wire's docs serve source hrefs as
+-- @file\/\/nix\/...@ (double slash) while the mangled docs link uses
+-- @file\/nix\/...@; both resolve to the same content (verified 200 on both).
+-- Normalizing makes cross-package re-exports of the same definition compare
+-- equal by source link, so dedup can collapse them.
+normalizeSourceLink :: URI -> URI
+normalizeSourceLink u = u { uriPath = collapse (uriPath u) }
+  where
+    collapse ('/' : '/' : rest) = '/' : collapse rest
+    collapse (c : rest) = c : collapse rest
+    collapse [] = []

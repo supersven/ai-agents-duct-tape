@@ -8,7 +8,7 @@ import Data.Maybe (fromJust)
 import qualified Data.Text as T
 import Network.URI (URI, parseURI, parseURIReference, uriToString)
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Wire.Hoogle.Source (extractSourceLinks, newSourceCache, pageHrefsWith, resolveHref, resolveSourceLinksWith)
+import Wire.Hoogle.Source (extractSourceLinks, newSourceCache, normalizeSourceLink, pageHrefsWith, resolveHref, resolveSourceLinksWith)
 import Wire.Hoogle.Types (CachedEntry(..), uriToText)
 
 uri :: String -> URI
@@ -73,14 +73,21 @@ spec = do
     it "leaves an absolute file:// href on the Wire origin untouched" $
       uriToText (resolveHref (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/IncipitCore.html") (uri "file:///nix/store/y-polysemy-1.9.2.0-doc/src/Polysemy.Resource.html#bracket"))
         `shouldBe` "file:///nix/store/y-polysemy-1.9.2.0-doc/src/Polysemy.Resource.html#bracket"
+  describe "normalizeSourceLink" $ do
+    it "collapses the file//nix double-slash quirk" $
+      uriToText (normalizeSourceLink (uri "https://hoogle.zinfra.io/file//nix/store/x-doc/html/src/Data.Aeson.Types.Internal.html#parseEither"))
+        `shouldBe` "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.Types.Internal.html#parseEither"
+    it "leaves single-slash links unchanged" $
+      uriToText (normalizeSourceLink (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.Types.Internal.html#parseEither"))
+        `shouldBe` "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.Types.Internal.html#parseEither"
   describe "resolveSourceLinksWith" $ do
     it "fills ceSourceLink from the stubbed page and leaves unlinkable entries alone" $ do
       calls <- newIORef (0 :: Int)
       let pageFetch page = modifyIORef' calls (+ 1) >> pure (Map.singleton "v:forever" "../ghc-internal-9.1003.0-33ec/src/GHC.Internal.Control.Monad.html#forever")
           entries =
-            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever")) Nothing ""
-            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch")) Nothing ""
-            , CachedEntry (Just "base") (Just "Prelude") "no-link" "d" Nothing Nothing ""
+            [ CachedEntry (Just "base") (Just "Control.Monad") "forever" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Control-Monad.html#v:forever")) Nothing "" []
+            , CachedEntry (Just "base") (Just "Prelude") "no-source" "d" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/libraries/base-4.20.2.0-4d66/Prelude.html#v:nosuch")) Nothing "" []
+            , CachedEntry (Just "base") (Just "Prelude") "no-link" "d" Nothing Nothing "" []
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of
@@ -106,8 +113,8 @@ spec = do
             | uriToString id page "" == "https://h/Data-Map.html" = pure (Map.singleton "v:map" "src/Data.Map.Strict.html#map")
             | otherwise = pure Map.empty
           entries =
-            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just (uri "https://h/Data-List.html#v:map")) Nothing ""
-            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just (uri "https://h/Data-Map.html#v:map")) Nothing ""
+            [ CachedEntry (Just "base") (Just "Data.List") "map" "d" (Just (uri "https://h/Data-List.html#v:map")) Nothing "" []
+            , CachedEntry (Just "containers") (Just "Data.Map") "map" "d" (Just (uri "https://h/Data-Map.html#v:map")) Nothing "" []
             ]
       resolved <- resolveSourceLinksWith pageFetch entries
       case resolved of

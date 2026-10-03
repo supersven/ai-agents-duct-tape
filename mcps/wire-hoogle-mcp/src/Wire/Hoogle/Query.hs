@@ -81,4 +81,5 @@ toEntry origin r = CachedEntry
   , ceLink = mangleLink origin (hrUrl r)
   , ceSourceLink = Nothing
   , ceType = hrType r
+  , ceAlsoIn = []
   }

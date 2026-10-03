@@ -551,7 +551,7 @@
                 # broken +pkg/-pkg/+Package/+Module forms.
                 rule=$(jq -r '.instructions[] | select(endswith("rules/hoogle.md"))' config.json)
                 ruletext=$(cat "$rule")
-                for needle in 'map +base' 'map -ghc-internal' "foldl' +Data.List" 'source_link' 'hoogle-search'; do
+                for needle in 'map +base' 'map -ghc-internal' "foldl' +Data.List" 'source_link' 'hoogle-search' 'deduplicated by' '+Module.Name' 'also_in'; do
                   case "$ruletext" in
                     *"$needle"*) ;;
                     *) echo "rule missing '$needle'" >&2; exit 1 ;;

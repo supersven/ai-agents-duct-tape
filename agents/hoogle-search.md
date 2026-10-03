@@ -20,6 +20,9 @@ Use the `hoogle` MCP tool to answer Haskell API questions.
    enough; request `full_docs` only when the signature is unclear.
 4. Prefer non-internal modules: use `-ghc-internal` or a `+Module.Name` filter
    to skip `ghc-internal`/`*.Internal` duplicates.
-5. Report the matched package, module, and signature; quote the docs when they
-   answer the question directly. Prefer the `source_link` (the real definition,
-   most useful for re-exported names) over the docs link.
+5. Results are deduplicated by `source_link` (same real definition appears
+   once); the matched module is the first re-exporting module, not necessarily
+   the canonical one — other `package/module` locations are in `also_in`.
+   Report the package, module, and signature; quote the docs when they answer
+   the question directly. Prefer the `source_link` (the real definition, most
+   useful for re-exported names) over the docs link.

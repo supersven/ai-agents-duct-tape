@@ -65,12 +65,14 @@ toolList = pure
           \(default) indexes the project's packages; set 'general' to true \
           \ONLY for a package not yet in the project (rare). Results are JSON: \
           \package, module, item (signature), docs, docs_truncated, link, \
-          \source_link, type."
+          \source_link, type, also_in. Results are deduplicated by \
+          \source_link: a definition re-exported by several modules appears \
+          \once, with the other package/module locations listed in 'also_in'."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("query", InputSchemaDefinitionProperty "string" "Hoogle query, not a plain search (see syntax in the tool description)")
               , ("general", InputSchemaDefinitionProperty "boolean" "Search the general hoogle instance (hoogle.haskell.org) instead of Wire; only for packages not yet in the project")
-              , ("count", InputSchemaDefinitionProperty "integer" "Maximum number of results, clamped to 1..50 (default: 10)")
+              , ("count", InputSchemaDefinitionProperty "integer" "Maximum number of results, clamped to 1..50 (default: 10); deduplication by source_link may return fewer")
               , ("full_docs", InputSchemaDefinitionProperty "boolean" "Return full docs instead of truncating to ~500 chars")
               ]
           , required = [ "query" ]

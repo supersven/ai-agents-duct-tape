@@ -10,7 +10,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Network.URI (URI, parseURI)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
-import Wire.Hoogle.Types (CachedEntry(..), HoogleResult(..), HoogleUrl(..), OutputEntry(..), toOutputEntry, truncateDocs)
+import Wire.Hoogle.Types (CachedEntry(..), HoogleResult(..), HoogleUrl(..), OutputEntry(..), dedupeBySourceLink, toOutputEntry, truncateDocs)
 
 uri :: String -> URI
 uri = fromJust . parseURI
@@ -49,17 +49,19 @@ spec = do
       hrUrl r2 `shouldBe` Nothing
   describe "ToJSON OutputEntry" $ do
     it "emits the documented keys incl. docs_truncated and source_link" $ do
-      let entry = OutputEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" "docs" True (Just "https://x") (Just "https://src") (Just "module")
+      let entry = OutputEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" "docs" True (Just "https://x") (Just "https://src") (Just "module") ["yaml/Data.Yaml"]
           text = T.decodeUtf8 (BS.toStrict (Aeson.encode entry))
       text `shouldSatisfy` T.isInfixOf "\"docs_truncated\":true"
       text `shouldSatisfy` T.isInfixOf "\"link\":\"https://x\""
       text `shouldSatisfy` T.isInfixOf "\"source_link\":\"https://src\""
       text `shouldSatisfy` T.isInfixOf "\"type\":\"module\""
-    it "emits null for a missing source link" $ do
-      let entry = OutputEntry Nothing Nothing "id" "docs" False Nothing Nothing Nothing
+      text `shouldSatisfy` T.isInfixOf "\"also_in\":[\"yaml/Data.Yaml\"]"
+    it "emits null for a missing source link and empty also_in" $ do
+      let entry = OutputEntry Nothing Nothing "id" "docs" False Nothing Nothing Nothing []
           text = T.decodeUtf8 (BS.toStrict (Aeson.encode entry))
       text `shouldSatisfy` T.isInfixOf "\"source_link\":null"
       text `shouldSatisfy` T.isInfixOf "\"type\":null"
+      text `shouldSatisfy` T.isInfixOf "\"also_in\":[]"
   describe "truncateDocs" $ do
     it "leaves short docs untruncated" $
       truncateDocs 10 "short" `shouldBe` ("short", False)
@@ -67,7 +69,7 @@ spec = do
       truncateDocs 10 (T.replicate 20 "x") `shouldBe` (T.replicate 10 "x", True)
   describe "toOutputEntry" $ do
     it "leaves short docs untruncated and passes the cached source link through" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Control.Monad") "forever" "short" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever")) (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever")) "module")
+      toOutputEntry False (CachedEntry (Just "base") (Just "Control.Monad") "forever" "short" (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever")) (Just (uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever")) "module" ["base/Control.Monad", "yaml/Data.Yaml"])
         `shouldBe` OutputEntry
           (Just "base")
           (Just "Control.Monad")
@@ -77,12 +79,55 @@ spec = do
           (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever")
           (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever")
           (Just "module")
+          ["base/Control.Monad", "yaml/Data.Yaml"]
     it "maps an empty type to Nothing" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" "short" Nothing Nothing "")
-        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" "short" False Nothing Nothing Nothing
+      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" "short" Nothing Nothing "" [])
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" "short" False Nothing Nothing Nothing []
     it "truncates long docs and flags it" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing Nothing "")
-        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True Nothing Nothing Nothing
+      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing Nothing "" [])
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True Nothing Nothing Nothing []
     it "keeps full docs when fullDocs" $
-      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just (uri "https://x")) (Just (uri "https://src")) "package")
-        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") (Just "https://src") (Just "package")
+      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just (uri "https://x")) (Just (uri "https://src")) "package" [])
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") (Just "https://src") (Just "package") []
+  describe "dedupeBySourceLink" $ do
+    let e pkg mod item = CachedEntry (Just pkg) (Just mod) item "docs" (Just (uri "https://x")) (Just (uri ("https://src/" ++ T.unpack mod))) "" []
+        e' mod src = CachedEntry (Just "base") (Just mod) "map" "docs" (Just (uri "https://x")) (Just (uri src)) "" []
+    it "keeps the first entry per source link and merges the rest into also_in" $
+      dedupeBySourceLink
+        [ e' "Prelude" "https://src/GHC.Internal.Base.html#map"
+        , e' "Data.List" "https://src/GHC.Internal.Base.html#map"
+        , e' "GHC.Base" "https://src/GHC.Internal.Base.html#map"
+        ]
+        `shouldBe` [ (e' "Prelude" "https://src/GHC.Internal.Base.html#map")
+                       { ceAlsoIn = ["base/Data.List", "base/GHC.Base"] }
+                   ]
+    it "keeps entries with distinct source links" $
+      dedupeBySourceLink
+        [ e "base" "Prelude" "map"
+        , e "base" "Control.Monad" "forever"
+        ]
+        `shouldBe` [ e "base" "Prelude" "map"
+                   , e "base" "Control.Monad" "forever"
+                   ]
+    it "keeps every entry without a source link, with empty also_in" $ do
+      let noSrc = CachedEntry (Just "base") (Just "Prelude") "map" "docs" Nothing Nothing "" []
+          a = noSrc
+          b = noSrc
+      dedupeBySourceLink [a, b] `shouldBe` [a, b]
+    it "keeps entries with distinct real definitions (different source links)" $
+      dedupeBySourceLink
+        [ e "aeson" "Data.Aeson" "parseEither"
+        , e "yaml" "Data.Yaml" "parseEither"
+        ]
+        `shouldBe` [ e "aeson" "Data.Aeson" "parseEither"
+                   , e "yaml" "Data.Yaml" "parseEither"
+                   ]
+    it "deduplicates also_in across repeated identical collapsed rows" $
+      dedupeBySourceLink
+        [ e' "Prelude" "https://src/GHC.Internal.Base.html#map"
+        , e' "Data.List" "https://src/GHC.Internal.Base.html#map"
+        , e' "Data.List" "https://src/GHC.Internal.Base.html#map"
+        ]
+        `shouldBe` [ (e' "Prelude" "https://src/GHC.Internal.Base.html#map")
+                       { ceAlsoIn = ["base/Data.List"] }
+                   ]

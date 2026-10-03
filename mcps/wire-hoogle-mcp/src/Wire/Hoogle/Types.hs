@@ -7,6 +7,7 @@ module Wire.Hoogle.Types
   , OutputEntry(..)
   , HoogleResult(..)
   , HoogleUrl(..)
+  , dedupeBySourceLink
   , truncateDocs
   , toOutputEntry
   , uriToText
@@ -14,7 +15,10 @@ module Wire.Hoogle.Types
 
 import Data.Aeson (FromJSON(..), ToJSON(..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.Aeson.Types (Parser)
+import Data.List (nub)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Network.URI (URI, parseURI, uriToString)
@@ -97,6 +101,7 @@ data CachedEntry = CachedEntry
   , ceLink :: Maybe URI
   , ceSourceLink :: Maybe URI
   , ceType :: Text
+  , ceAlsoIn :: [Text]
   }
   deriving (Eq, Show)
 
@@ -111,6 +116,7 @@ data OutputEntry = OutputEntry
   , oeLink :: Maybe Text
   , oeSourceLink :: Maybe Text
   , oeType :: Maybe Text
+  , oeAlsoIn :: [Text]
   }
   deriving (Eq, Show)
 
@@ -124,11 +130,59 @@ instance ToJSON OutputEntry where
     , "link" .= oeLink e
     , "source_link" .= oeSourceLink e
     , "type" .= oeType e
+    , "also_in" .= oeAlsoIn e
     ]
 
 -- | Render a 'URI' to its canonical string form.
 uriToText :: URI -> Text
 uriToText u = T.pack (uriToString id u "")
+
+-- | Collapse re-export duplicates: entries whose real definition (resolved
+-- @source_link@) is the same. Keeps the first occurrence per source link and
+-- every entry without a source link, preserving order. Each collapsed row's
+-- @package\/module@ is appended to the survivor's @also_in@ (deduped, in
+-- encounter order). Wire Hoogle returns the same name once per re-exporting
+-- module (Prelude, Data.List, GHC.Base, ...) with identical source links; this
+-- cuts that noise on every query while keeping the re-export locations.
+dedupeBySourceLink :: [CachedEntry] -> [CachedEntry]
+dedupeBySourceLink es = [ e { ceAlsoIn = alsoInFor (ceSourceLink e) } | e <- survivors ]
+  where
+    survivors = go Set.empty es
+      where
+        go _ [] = []
+        go seen (e : rest) =
+          case ceSourceLink e of
+            Nothing -> e : go seen rest
+            Just src
+              | src `Set.member` seen -> go seen rest
+              | otherwise -> e : go (Set.insert src seen) rest
+
+    -- first entry (the survivor) per source link
+    firstBySrc :: Map.Map URI CachedEntry
+    firstBySrc = foldl step Map.empty es
+      where
+        step m e = case ceSourceLink e of
+          Just src | not (Map.member src m) -> Map.insert src e m
+          _ -> m
+
+    alsoInFor :: Maybe URI -> [Text]
+    alsoInFor Nothing = []
+    alsoInFor (Just src) =
+      case Map.lookup src firstBySrc of
+        Nothing -> []
+        Just survivor ->
+          nub [ loc | e <- es
+                    , ceSourceLink e == Just src
+                    , let loc = locOf e
+                    , loc /= locOf survivor
+                    , not (T.null loc) ]
+
+    locOf :: CachedEntry -> Text
+    locOf e = case (cePackage e, ceModule e) of
+      (Nothing, Nothing) -> ""
+      (Just p, Nothing) -> p
+      (Nothing, Just m) -> m
+      (Just p, Just m) -> p <> "/" <> m
 
 truncateDocs :: Int -> Text -> (Text, Bool)
 truncateDocs limit docs
@@ -145,6 +199,7 @@ toOutputEntry fullDocs entry = OutputEntry
   , oeLink = uriToText <$> ceLink entry
   , oeSourceLink = uriToText <$> ceSourceLink entry
   , oeType = type'
+  , oeAlsoIn = ceAlsoIn entry
   }
   where
     (docs, truncated) =

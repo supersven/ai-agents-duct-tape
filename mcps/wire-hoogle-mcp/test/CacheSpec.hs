@@ -18,7 +18,7 @@ uri :: String -> URI
 uri = fromJust . parseURI
 
 fullEntry :: CachedEntry
-fullEntry = CachedEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" (T.replicate 1000 "x") Nothing Nothing ""
+fullEntry = CachedEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" (T.replicate 1000 "x") Nothing Nothing "" []
 
 cfg :: Config
 cfg = Config (uri "https://hoogle.zinfra.io") (uri "https://hoogle.haskell.org") 10
@@ -80,3 +80,15 @@ spec = do
         Left (QueryBadStatus 500) -> pure ()
         _ -> expectationFailure "expected QueryBadStatus 500"
       n `shouldBe` 2
+    it "deduplicates re-exports by source link and merges also_in" $ do
+      cache <- newHoogleCache 10
+      let src = uri "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Base.html#map"
+          dup mod = CachedEntry (Just "base") (Just mod) "map" "docs" (Just (uri ("https://hoogle.zinfra.io/file/nix/store/x-doc/html/" ++ T.unpack mod ++ ".html#v:map"))) (Just src) "" []
+          stub _ _ = pure (Right [dup "Prelude", dup "Data.List", dup "GHC.Base"])
+          qp = QueryParams "map" 10 False
+      result <- cachedQueryWith stub cache cfg WireServer qp
+      case result of
+        Right [e] -> do
+          oeModule e `shouldBe` Just "Prelude"
+          oeAlsoIn e `shouldBe` ["base/Data.List", "base/GHC.Base"]
+        _ -> expectationFailure "expected a single deduplicated result"

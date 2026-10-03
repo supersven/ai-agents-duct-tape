@@ -137,6 +137,29 @@ Output: compact JSON array; each element `{package, module, item, docs,
 docs_truncated, link, source_link}` (`docs_truncated` is true when `docs` was
 truncated to ~500 chars; `link` = mangled docs URL, null if absent;
 `source_link` = the haddock "Source" link for the item, null if not derivable).
+`type` is null for functions, `"module"` for module entries, `"package"` for
+package entries. `also_in` lists every other `package/module` location that
+re-exports the same definition.
+
+Results are deduplicated by `source_link` (via `dedupeBySourceLink` in
+`Wire.Hoogle.Types`, applied during the cache fill): Wire Hoogle returns the
+same name once per re-exporting module (Prelude, Data.List, GHC.Base, ...), all
+sharing the same resolved source link; only the first is kept, along with every
+entry that has no source link. The collapsed rows' `package/module` locations
+are merged into the survivor's `also_in` (deduped, in encounter order), so
+re-export info is preserved, not lost. Verified live: `map` collapses to one
+base row with `also_in = ["base/Data.List", "base/GHC.Base", "base/GHC.List"]`,
+and `parseEither`'s aeson row lists `["yaml/Data.Yaml"]`. `count` is therefore
+a maximum, not a guarantee. Note: dedup shrinks the served payload only, not
+the fetch work — `resolveSourceLinks` resolves every row's docs page before
+dedup runs, so a `map` query still fetches the Prelude/Data.List/GHC.Base pages
+on the first (uncached) fill.
+
+Divergence from the Wire docs pages: source hrefs are served as
+`file//nix/...` (double slash) while the mangled docs link uses `file/nix/...`;
+both resolve to the same content (verified 200 on both). `normalizeSourceLink`
+(`Wire.Hoogle.Source`) collapses the repeated slash so cross-package re-exports
+of the same definition compare equal by source link and can be deduplicated.
 
 `source_link` follows the "Source" link Haddock renders next to the item's
 anchor on the docs page — *not* URL munging. Munging is dead for re-exports:

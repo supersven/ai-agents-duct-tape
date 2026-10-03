@@ -17,7 +17,13 @@ servers don't: functions in dependencies that the project doesn't use yet.
   project — this is rare.
 - Results are structured JSON: package, module, signature (`item`), docs,
   `docs_truncated` (true when docs were cut to ~500 chars), `link`, the
-  `source_link` of the real definition (best for re-exports), and `type`
-  (function: null, module re-export: "module", package: "package").
+  `source_link` of the real definition (best for re-exports), `type`
+  (function: null, module entry: "module", package entry: "package"), and
+  `also_in` (other `package/module` locations re-exporting the same
+  definition).
+- Results are deduplicated by `source_link`: the same real definition
+  re-exported by several modules (Prelude, Data.List, GHC.Base, ...) appears
+  once, with the other locations in `also_in`. To see a specific re-exporting
+  module, scope the query with `+Module.Name`.
 - For multi-query research, dispatch the `hoogle-search` subagent; for a
   single lookup, call the `hoogle` tool directly.
