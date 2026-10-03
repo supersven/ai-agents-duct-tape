@@ -2,6 +2,19 @@
 
 Nix flake providing pre-configured opencode harnesses for specialized usages.
 
+## Haskell API search (hoogle MCP)
+
+The `wire-server-haskell-dev` harness ships a `hoogle` MCP server, a
+`hoogle-search` subagent, and a rule, giving opencode Haskell API lookup
+against the Wire Hoogle instance (general instance opt-in).
+
+- Harness: `nix develop .#wire-server-haskell-dev` (or
+  `nix build .#wire-server-haskell-dev`).
+- Standalone CLI: `nix build .#wire-hoogle-mcp` then
+  `./result/bin/wire-hoogle-mcp query "map +base"`.
+- Architecture, usage, and output format:
+  [mcps/wire-hoogle-mcp/README.md](./mcps/wire-hoogle-mcp/README.md).
+
 ## Linting and formatting Nix code
 
 Configured via [treefmt-nix](https://github.com/numtide/treefmt-nix)
