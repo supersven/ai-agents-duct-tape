@@ -108,7 +108,9 @@
                 hspec
                 lrucache
                 mcp-server
+                network-uri
                 optparse-applicative
+                tagsoup
               ]
             ))
           ];

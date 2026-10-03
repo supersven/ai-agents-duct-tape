@@ -17,7 +17,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
-import Wire.Hoogle.Mangle (deriveSourceLink)
 
 data Config = Config
   { cfgWireUrl :: Text
@@ -74,14 +73,17 @@ instance FromJSON HoogleResult where
       <*> o .:? "package" .!= HoogleUrl Nothing Nothing
       <*> o .:? "module" .!= HoogleUrl Nothing Nothing
 
--- | What the cache stores: full, untruncated docs, mangled link, and nothing
--- derived per request (no truncation flag, no source link).
+-- | What the cache stores: full, untruncated docs, mangled link, and the
+-- resolved haddock "Source" link. Nothing derived per request (no truncation
+-- flag); the source link needs a docs-page fetch, so it is resolved at query
+-- time and cached.
 data CachedEntry = CachedEntry
   { cePackage :: Maybe Text
   , ceModule :: Maybe Text
   , ceItem :: Text
   , ceDocs :: Text
   , ceLink :: Maybe Text
+  , ceSourceLink :: Maybe Text
   }
   deriving (Eq, Show)
 
@@ -122,7 +124,7 @@ toOutputEntry fullDocs entry = OutputEntry
   , oeDocs = docs
   , oeDocsTruncated = truncated
   , oeLink = ceLink entry
-  , oeSourceLink = deriveSourceLink =<< ceLink entry
+  , oeSourceLink = ceSourceLink entry
   }
   where
     (docs, truncated) =

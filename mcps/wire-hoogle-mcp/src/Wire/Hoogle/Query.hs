@@ -76,4 +76,5 @@ toEntry origin r = CachedEntry
   , ceItem = hrItem r
   , ceDocs = hrDocs r
   , ceLink = mangleLink origin (hrUrl r)
+  , ceSourceLink = Nothing
   }

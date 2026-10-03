@@ -40,7 +40,7 @@ import Options.Applicative
   )
 import System.Exit (exitFailure)
 import System.IO (stderr)
-import Wire.Hoogle.Cache (cachedQuery, newHoogleCache)
+import Wire.Hoogle.Cache (cachedQuery, newCaches)
 import Wire.Hoogle.Query (QueryParams(..), Server(..))
 import Wire.Hoogle.Server (runServer)
 import Wire.Hoogle.Types (Config(..))
@@ -89,10 +89,10 @@ runCommand :: Command -> Config -> IO ()
 runCommand CommandServe cfg = runServer cfg
 runCommand (CommandQuery qo) cfg = do
   manager <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 30000000 }
-  cache <- newHoogleCache (cfgCacheMaxEntries cfg)
+  caches <- newCaches (cfgCacheMaxEntries cfg)
   let server = fromMaybe WireServer (qoServer qo)
       qp = QueryParams (qoQuery qo) (min 50 (max 1 (qoCount qo))) (qoFullDocs qo)
-  result <- cachedQuery manager cache cfg server qp
+  result <- cachedQuery manager caches cfg server qp
   case result of
     Left err -> TIO.hPutStrLn stderr ("error: " <> T.pack (show err)) >> exitFailure
     Right entries -> TIO.putStrLn (T.decodeUtf8 (toStrict (encode entries)))

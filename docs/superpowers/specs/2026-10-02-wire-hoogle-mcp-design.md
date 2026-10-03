@@ -26,18 +26,23 @@ yet used in the project.
 Cabal project at `mcps/wire-hoogle-mcp/`, one executable `wire-hoogle-mcp`.
 
 Dependencies: `aeson`, `mcp-server`, `http-client`, `http-client-tls`,
-`optparse-applicative`, `lrucache`, `text`, `bytestring`.
+`optparse-applicative`, `lrucache`, `text`, `bytestring`, `containers`,
+`network-uri` (Source-href resolution), `tagsoup` (docs-page parsing).
 
 Modules (small, single-purpose):
 
 - `Wire.Hoogle.Types` — config record; hoogle result JSON types (`FromJSON`);
   two output shapes: `CachedEntry` (what the LRU stores: full untruncated
-  docs, mangled link) and `OutputEntry` (what is served; `ToJSON`).
+  docs, mangled link, resolved source link) and `OutputEntry` (what is served;
+  `ToJSON`).
 - `Wire.Hoogle.Query` — HTTP GET to `?mode=json&format=text&hoogle=<q>...`,
   parse via aeson.
-- `Wire.Hoogle.Mangle` — URL mangling and source-link derivation (below).
+- `Wire.Hoogle.Mangle` — URL mangling.
+- `Wire.Hoogle.Source` — docs-page fetch + haddock "Source"-href extraction
+  (below).
 - `Wire.Hoogle.Cache` — `lrucache`-backed LRU wrapper around the parsed
-  results, capacity from `HOOGLE_CACHE_MAX_ENTRIES`.
+  results, capacity from `HOOGLE_CACHE_MAX_ENTRIES`; plus the `SourceCache`
+  (LRU keyed by docs-page URL).
 - `Wire.Hoogle.CLI` — `optparse-applicative` parser (below).
 - `Main.hs` — `McpServerInfo` + handlers, `runMcpServerStdio`.
 
@@ -73,14 +78,21 @@ on insert, evict the least-recently-used entries when at capacity.
 
 Capacity is entry-count based (the library caps by count, not bytes);
 configurable via `HOOGLE_CACHE_MAX_ENTRIES`. Default 5000. The cache stores
-**`CachedEntry`**s (full, untruncated `docs`): per request `cachedQuery`
-converts to **`OutputEntry`** via `toOutputEntry`, truncating `docs` to ~500
-chars unless `full_docs` and deriving the `source_link`. `full_docs` is
-therefore **not** part of the cache key (server, query, count only) — a
-truncated and a full-docs request for the same search share one cache entry
-and one HTTP fetch; truncation/derivation is cheap, HTTP is not. Long docs
-are rare, so caching full docs outweighs the larger per-entry footprint.
-Session-scoped; results don't change during a session.
+**`CachedEntry`**s (full, untruncated `docs` plus the resolved `source_link`):
+per request `cachedQuery` converts to **`OutputEntry`** via `toOutputEntry`,
+truncating `docs` to ~500 chars unless `full_docs`. `full_docs` is therefore
+**not** part of the cache key (server, query, count only) — a truncated and a
+full-docs request for the same search share one cache entry and one HTTP fetch;
+truncation is cheap, HTTP is not. Source links are resolved at fill time (they
+need a docs-page fetch) and cached in the entry. Long docs are rare, so
+caching full docs outweighs the larger per-entry footprint. Session-scoped;
+results don't change during a session.
+
+Two LRUs are composed into a single **`Caches`** record per session (created
+together with the same capacity): `cachesHoogle` is the query cache above, and
+`cachesSource` is the docs-page cache used only while filling the query cache
+(see `source_link` below). The record is threaded through `cachedQuery` /
+`toolCall` as one value, so call sites don't juggle two caches.
 
 ### CLI
 
@@ -118,15 +130,30 @@ agents):
 Output: compact JSON array; each element `{package, module, item, docs,
 docs_truncated, link, source_link}` (`docs_truncated` is true when `docs` was
 truncated to ~500 chars; `link` = mangled docs URL, null if absent;
-`source_link` = derived haddock source page, null if not derivable).
+`source_link` = the haddock "Source" link for the item, null if not derivable).
 
-`source_link` is derived from `link` per request (not cached): insert `src/`
-before the page, convert `-` back to `.` in the module name, and drop the
-`#v:`/`#t:` anchor prefix — e.g. `.../html/Data-Aeson-KeyMap.html#v:map` →
-`.../html/src/Data.Aeson.KeyMap.html#map`. Non-module pages (`index.html`,
-`doc-index.html`, ...) yield null. Verified live: the derived URLs resolve on
-both the Wire instance (200) and hackage (redirects to the current package
-version, as the docs links themselves do).
+`source_link` follows the "Source" link Haddock renders next to the item's
+anchor on the docs page — *not* URL munging. Munging is dead for re-exports:
+e.g. base's `Control.Monad.forever` is defined in ghc-internal's
+`GHC.Internal.Control.Monad`, so a munged `src/Control.Monad.html#forever` link
+has no such anchor. Instead, `Wire.Hoogle.Source` fetches the docs page (the
+mangled `link` minus fragment), extracts each def anchor's `class="link"`
+"Source" href with tagsoup, resolves the relative href against the page URL
+(network-uri), and caches the anchor→href map per page URL. Because this needs
+a docs-page fetch, resolution happens at query time (part of the cache fill),
+not per request; `CachedEntry` carries the resolved `ceSourceLink`. The page
+cache is a second LRU (`SourceCache`) keyed by page URL, so repeated queries
+over the same module refetch the page once. The extractor only attributes a
+`class="link"` href to a def anchor that shares its container block: Haddock
+renders a def and its Source link inside one `<p class="src">`, while
+constructors live in `<td class="src">` table cells with no Source link of
+their own — a stateful scan would otherwise attribute a later instance method's
+Source link to the last constructor (`v:False` → `Bits Bool`'s `(.&.)`, seen
+live on base's Prelude). Failed page fetches (HTTP error, no def anchors) are
+not cached, so a transient failure is retried on the next query. A missing or
+undecodable page, a def with no Source link (e.g. constructors), or an unknown
+anchor yields null. Verified live: the resolved Source link for `forever`
+points into ghc-internal's src page on both the Wire instance and hackage.
 
 `McpServerInfo.serverInstructions` gives a 2-3 sentence overview of the tool
 and the query-not-search distinction.

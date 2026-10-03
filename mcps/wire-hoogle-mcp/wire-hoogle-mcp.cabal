@@ -9,6 +9,7 @@ library
     Wire.Hoogle.Types
     Wire.Hoogle.Mangle
     Wire.Hoogle.Query
+    Wire.Hoogle.Source
     Wire.Hoogle.Cache
     Wire.Hoogle.Server
     Wire.Hoogle.CLI
@@ -19,12 +20,15 @@ library
     base >=4.14 && <5
     , aeson >=2 && <3
     , bytestring >=0.10 && <0.13
+    , containers >=0.6 && <0.8
     , http-client >=0.7 && <0.8
     , http-client-tls >=0.3 && <0.4
     , http-types >=0.12 && <0.13
     , lrucache >=1.2 && <1.3
     , mcp-server >=0.1 && <0.3
+    , network-uri >=2.6 && <2.7
     , optparse-applicative >=0.18 && <0.19
+    , tagsoup >=0.14 && <0.15
     , text >=1.2 && <3
   default-language: GHC2021
 
@@ -43,6 +47,7 @@ test-suite spec
   main-is:          Spec.hs
   other-modules:
     MangleSpec
+    SourceSpec
     TypesSpec
     QuerySpec
     CacheSpec
@@ -53,6 +58,7 @@ test-suite spec
     , containers
     , hspec
     , lrucache
+    , tagsoup
     , text
     , wire-hoogle-mcp
   default-language: GHC2021

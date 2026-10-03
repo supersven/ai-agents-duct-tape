@@ -23,14 +23,14 @@ import MCP.Server
 import Network.HTTP.Client (Manager, managerResponseTimeout, newManager, responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Paths_wire_hoogle_mcp (version)
-import Wire.Hoogle.Cache (HoogleCache, cachedQuery, newHoogleCache)
+import Wire.Hoogle.Cache (Caches, cachedQuery, newCaches)
 import Wire.Hoogle.Query (QueryParams(..), Server(..))
 import Wire.Hoogle.Types (Config(..))
 
 runServer :: Config -> IO ()
 runServer cfg = do
   manager <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 30000000 }
-  cache <- newHoogleCache (cfgCacheMaxEntries cfg)
+  caches <- newCaches (cfgCacheMaxEntries cfg)
   let serverInfo = McpServerInfo
         { serverName = "wire-hoogle"
         , serverVersion = T.pack (showVersion version)
@@ -43,7 +43,7 @@ runServer cfg = do
       handlers = McpServerHandlers
         { prompts = Nothing
         , resources = Nothing
-        , tools = Just (toolList, toolCall manager cache cfg)
+        , tools = Just (toolList, toolCall manager caches cfg)
         }
   runMcpServerStdio serverInfo handlers
 
@@ -75,8 +75,8 @@ toolList = pure
       }
   ]
 
-toolCall :: Manager -> HoogleCache -> Config -> Text -> [(Text, Text)] -> IO (Either Error Content)
-toolCall manager cache cfg toolName args
+toolCall :: Manager -> Caches -> Config -> Text -> [(Text, Text)] -> IO (Either Error Content)
+toolCall manager caches cfg toolName args
   | toolName /= "hoogle" = pure (Left (UnknownTool toolName))
   | otherwise =
       case lookup "query" args of
@@ -89,7 +89,7 @@ toolCall manager cache cfg toolName args
                 }
               server = if lookup "general" args == Just "true" then GeneralServer else WireServer
           in do
-            result <- cachedQuery manager cache cfg server qp
+            result <- cachedQuery manager caches cfg server qp
             pure $ case result of
               Left err -> Left (InternalError (T.pack (show err)))
               Right entries -> Right (ContentText (T.decodeUtf8 (BL8.toStrict (Aeson.encode entries))))

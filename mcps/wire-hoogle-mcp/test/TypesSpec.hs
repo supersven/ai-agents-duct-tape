@@ -51,19 +51,19 @@ spec = do
     it "truncates long docs and flags it" $
       truncateDocs 10 (T.replicate 20 "x") `shouldBe` (T.replicate 10 "x", True)
   describe "toOutputEntry" $ do
-    it "leaves short docs untruncated and derives the source link" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" "short" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html#v:map"))
+    it "leaves short docs untruncated and passes the cached source link through" $
+      toOutputEntry False (CachedEntry (Just "base") (Just "Control.Monad") "forever" "short" (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever") (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever"))
         `shouldBe` OutputEntry
           (Just "base")
-          (Just "Prelude")
-          "map"
+          (Just "Control.Monad")
+          "forever"
           "short"
           False
-          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Data-Aeson-KeyMap.html#v:map")
-          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/Data.Aeson.KeyMap.html#map")
+          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/Control-Monad.html#v:forever")
+          (Just "https://hoogle.zinfra.io/file/nix/store/x-doc/html/src/GHC.Internal.Control.Monad.html#forever")
     it "truncates long docs and flags it" $
-      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing)
+      toOutputEntry False (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") Nothing Nothing)
         `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 500 "x") True Nothing Nothing
     it "keeps full docs when fullDocs" $
-      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just "https://x"))
-        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") Nothing
+      toOutputEntry True (CachedEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") (Just "https://x") (Just "https://src"))
+        `shouldBe` OutputEntry (Just "base") (Just "Prelude") "map" (T.replicate 1000 "x") False (Just "https://x") (Just "https://src")

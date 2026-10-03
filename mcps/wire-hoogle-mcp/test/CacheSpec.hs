@@ -13,7 +13,7 @@ import Wire.Hoogle.Query (QueryError(..), QueryParams(..), Server(..))
 import Wire.Hoogle.Types (CachedEntry(..), Config(..), OutputEntry(..))
 
 fullEntry :: CachedEntry
-fullEntry = CachedEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" (T.replicate 1000 "x") Nothing
+fullEntry = CachedEntry (Just "base") (Just "Prelude") "map :: (a -> b) -> [a] -> [b]" (T.replicate 1000 "x") Nothing Nothing
 
 cfg :: Config
 cfg = Config "https://hoogle.zinfra.io" "https://hoogle.haskell.org" 10
