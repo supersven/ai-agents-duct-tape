@@ -94,6 +94,7 @@
             agent-skills
             superpowers
             wireHoogleMcp
+            semble
             ;
         };
         wireHoogleMcpToolchain = pkgs.mkShell {
@@ -546,6 +547,27 @@
                 jq -e 'any(.instructions[]; endswith("rules/hoogle.md"))' config.json >/dev/null
                 jq -e '.agent | has("hoogle-search")' config.json >/dev/null
 
+                # semble (was missing from this harness)
+                jq -e '.mcp.semble.type == "local"' config.json >/dev/null
+                jq -e 'any(.instructions[]; endswith("rules/semble.md"))' config.json >/dev/null
+                jq -e '.agent | has("semble-search")' config.json >/dev/null
+
+                # anthropic-models: model + variant per agent
+                jq -e '.model == "anthropic/claude-sonnet-5-5"' config.json >/dev/null
+                jq -e '.small_model == "anthropic/claude-haiku-4-5"' config.json >/dev/null
+                jq -e '.agent.build | .model == "anthropic/claude-sonnet-5-5" and .variant == "medium"' config.json >/dev/null
+                jq -e '.agent.plan | .model == "anthropic/claude-opus-5-5" and .variant == "medium"' config.json >/dev/null
+                jq -e '.agent.general | .model == "anthropic/claude-sonnet-5-5" and .variant == "high"' config.json >/dev/null
+                jq -e '.agent.compaction | .model == "anthropic/claude-sonnet-5-5" and .variant == "medium"' config.json >/dev/null
+                # Haiku agents run without thinking: model only, no variant
+                for a in explore title summary hoogle-search semble-search; do
+                  jq -e --arg a "$a" '.agent[$a].model == "anthropic/claude-haiku-4-5" and (.agent[$a] | has("variant") | not)' config.json >/dev/null
+                done
+                # non-default sampling params are a 400 on Sonnet/Opus 5.5
+                jq -e 'all(.agent[]; has("temperature") | not) and all(.agent[]; has("top_p") | not)' config.json >/dev/null
+                # no phantom agents: only builtins + shipped ones
+                jq -e '(.agent | keys | sort) == ["build","compaction","explore","general","hoogle-search","plan","semble-search","summary","title"]' config.json >/dev/null
+
                 # regression guard: the rule must dispatch hoogle-search and
                 # permit explicit fallbacks; the query syntax and result
                 # contract live in the agent prompt (checked below).
@@ -593,10 +615,24 @@
                 jq -e '.name == "hoogle-search"' agent.json >/dev/null
                 jq -e '.mode == "subagent"' agent.json >/dev/null
                 # the subagent is restricted to the hoogle MCP tool + read
-                jq -e '.tools.bash == false and .tools.edit == false and .tools.write == false and .tools.webfetch == false and .tools.websearch == false and .tools.grep == false and .tools.glob == false and .tools.skill == false and .tools.task == false and .tools.todowrite == false and .tools.read == true' agent.json >/dev/null
+                # (websearch is absent, not false, with the anthropic model set; observed)
+                jq -e '.tools.bash == false and .tools.edit == false and .tools.write == false and .tools.webfetch == false and .tools.websearch != true and .tools.grep == false and .tools.glob == false and .tools.skill == false and .tools.task == false and .tools.todowrite == false and .tools.read == true' agent.json >/dev/null
 
                 echo ok > $out
               '';
+
+          # every agents/<name>.md needs a model assignment in the table
+          anthropic-models-coverage =
+            let
+              table = import ./harnesses/parts/anthropic-models-table.nix;
+              files = builtins.attrNames (builtins.readDir ./agents);
+              names = map (f: lib.removeSuffix ".md" f) files;
+              missing = builtins.filter (n: !(table.shipped ? ${n})) names;
+              stale = builtins.filter (n: !(builtins.elem n names)) (builtins.attrNames table.shipped);
+            in
+            assert lib.assertMsg (missing == [ ] && stale == [ ])
+              "anthropic-models-table.nix out of sync with agents/: missing=${toString missing} stale=${toString stale}";
+            pkgs.runCommand "check-anthropic-models-coverage" { } "echo ok > $out";
 
           formatting = treefmtEval.config.build.check self;
         };
