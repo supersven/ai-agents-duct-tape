@@ -1,4 +1,4 @@
-# ai-agents-tuct-tape
+# ai-agents-duct-tape
 
 Nix flake providing pre-configured opencode harnesses for specialized usages.
 
@@ -12,6 +12,11 @@ against the Wire Hoogle instance (general instance opt-in).
   `nix build .#wire-server-haskell-dev`).
 - Standalone CLI: `nix build .#wire-hoogle-mcp` then
   `./result/bin/wire-hoogle-mcp query "map +base"`.
+- No clone needed:
+  `nix run github:supersven/ai-agents-duct-tape#wire-hoogle-mcp --` starts
+  the MCP server. Add to Claude Code with
+  `claude mcp add --scope user hoogle -- nix run github:supersven/ai-agents-duct-tape#wire-hoogle-mcp`
+  (details in the MCP README below).
 - Architecture, usage, and output format:
   [mcps/wire-hoogle-mcp/README.md](./mcps/wire-hoogle-mcp/README.md).
 

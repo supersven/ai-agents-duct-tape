@@ -23,6 +23,43 @@ nix build .#wire-hoogle-mcp
 ./result/bin/wire-hoogle-mcp query "parseEither" --general
 ```
 
+Without cloning, run straight from GitHub. No args starts the stdio MCP
+server; args run the CLI:
+
+```sh
+nix run github:supersven/ai-agents-duct-tape#wire-hoogle-mcp --                      # MCP server
+nix run github:supersven/ai-agents-duct-tape#wire-hoogle-mcp -- query "map +base"    # CLI
+```
+
+### Add to Claude Code
+
+Via CLI (everything after `--` is the server command):
+
+```sh
+claude mcp add --scope user hoogle -- nix run github:supersven/ai-agents-duct-tape#wire-hoogle-mcp
+```
+
+`--scope`: `local` (default; you, this project), `user` (you, all projects),
+`project` (writes a shared `.mcp.json`; Claude asks for approval on first
+use). Env overrides: `-e WIRE_HOOGLE_URL=https://...`. Manage with
+`claude mcp list|get|remove hoogle`, or `/mcp` in a session.
+
+Or edit `~/.claude.json` (user/local) or `.mcp.json` (project) directly; the
+CLI command above produces exactly this entry:
+
+```json
+"mcpServers": {
+  "hoogle": {
+    "type": "stdio",
+    "command": "nix",
+    "args": ["run", "github:supersven/ai-agents-duct-tape#wire-hoogle-mcp"],
+    "env": {}
+  }
+}
+```
+
+### Query syntax
+
 `query` is a Hoogle query, not a plain search: a name (`map`), a type
 (`a -> a`), or combined `name :: type`. Scope with bare filters:
 `+packagename`, `-packagename`, `+Module.Name`. Options: `--count N`
