@@ -91,11 +91,9 @@
             pkgs
             nixwrap
             opencode
-            agent-skills
-            superpowers
             wireHoogleMcp
-            semble
             ;
+          vanillaDev = vanillaDevHarness;
         };
         wireHoogleMcpToolchain = pkgs.mkShell {
           packages = [
@@ -418,6 +416,10 @@
                 }
 
                 run ${vanillaDevHarness.package}/bin/opencode debug config > config.json
+                jq -e '.lsp == true' config.json >/dev/null
+                for b in nixd bash-language-server yaml-language-server; do
+                  grep -q "$b" ${vanillaDevHarness.package}/bin/opencode
+                done
                 jq -e '.permission.edit == "ask"' config.json >/dev/null
                 jq -e '.mcp.semble.type == "local"' config.json >/dev/null
                 jq -e --arg cmd "${semble}/bin/semble" \
@@ -483,6 +485,10 @@
                 }
 
                 run ${vanillaDevHarness.llmaas.package}/bin/opencode debug config > config.json
+                jq -e '.lsp == true' config.json >/dev/null
+                for b in nixd bash-language-server yaml-language-server; do
+                  grep -q "$b" ${vanillaDevHarness.llmaas.package}/bin/opencode
+                done
                 jq -e '.provider["cloud-temple"].npm == "@ai-sdk/openai-compatible"' config.json >/dev/null
                 jq -e '.provider["cloud-temple"].options.baseURL == "https://api.ai.cloud-temple.com/v1"' config.json >/dev/null
                 jq -e '.agent.build.model == "cloud-temple/qwen-coder-next:80b"' config.json >/dev/null
@@ -539,6 +545,10 @@
                 }
 
                 run ${wireServerHaskellDevHarness.package}/bin/opencode debug config > config.json
+                jq -e '.lsp == true' config.json >/dev/null
+                for b in nixd bash-language-server yaml-language-server; do
+                  grep -q "$b" ${wireServerHaskellDevHarness.package}/bin/opencode
+                done
                 jq -e '.permission.edit == "ask"' config.json >/dev/null
                 jq -e '.mcp["wire-hoogle"].type == "local"' config.json >/dev/null
                 jq -e --arg cmd "${wireHoogleMcp}/bin/wire-hoogle-mcp" \

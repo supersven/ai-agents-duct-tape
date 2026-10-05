@@ -3,10 +3,8 @@
   pkgs,
   nixwrap,
   opencode,
-  agent-skills,
-  superpowers,
   wireHoogleMcp,
-  semble,
+  vanillaDev,
 }:
 let
   harnessLib = import ../lib {
@@ -17,18 +15,8 @@ let
       opencode
       ;
   };
-  commonModules = [
-    (import ./parts/base.nix { inherit lib; })
-    (import ./parts/superpowers.nix {
-      inherit
-        pkgs
-        agent-skills
-        superpowers
-        ;
-    })
+  commonModules = vanillaDev.modules ++ [
     (import ./parts/hoogle-mcp.nix { inherit wireHoogleMcp; })
-    (import ./parts/semble.nix { inherit semble; })
-    (import ./parts/be-concise.nix)
   ];
   # Anthropic and LLMaaS (Cloud Temple) model assignments are mutually
   # exclusive: only the default harness gets the Anthropic part.

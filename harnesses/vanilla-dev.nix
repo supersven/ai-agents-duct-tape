@@ -27,6 +27,7 @@ let
     })
     (import ./parts/semble.nix { inherit semble; })
     (import ./parts/be-concise.nix)
+    (import ./parts/lsp.nix { inherit pkgs; })
   ];
   harness = harnessLib.mkHarness {
     name = "vanilla-dev";
@@ -38,6 +39,7 @@ let
   };
 in
 {
+  inherit modules;
   inherit (harness) package devShell;
   llmaas = {
     inherit (llmaasHarness) package devShell;
