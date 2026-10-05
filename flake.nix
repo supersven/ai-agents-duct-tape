@@ -546,23 +546,42 @@
                 jq -e 'any(.instructions[]; endswith("rules/hoogle.md"))' config.json >/dev/null
                 jq -e '.agent | has("hoogle-search")' config.json >/dev/null
 
-                # regression guard: the rule must document the real hoogle scope
-                # filters (bare +packagename/-packagename/+Module.Name), not the
-                # broken +pkg/-pkg/+Package/+Module forms.
+                # regression guard: the rule must dispatch hoogle-search and
+                # permit explicit fallbacks; the query syntax and result
+                # contract live in the agent prompt (checked below).
                 rule=$(jq -r '.instructions[] | select(endswith("rules/hoogle.md"))' config.json)
                 ruletext=$(cat "$rule")
-                for needle in 'map +base' 'map -ghc-internal' "foldl' +Data.List" 'source_link' 'hoogle-search' 'deduplicated by' '+Module.Name' 'also_in'; do
+                for needle in 'hoogle-search' 'Always dispatch' 'task_id' 'explore' 'fallback'; do
                   case "$ruletext" in
                     *"$needle"*) ;;
                     *) echo "rule missing '$needle'" >&2; exit 1 ;;
                   esac
                 done
                 case "$ruletext" in
-                  *'+pkg'*) echo "rule uses broken +pkg" >&2; exit 1 ;;
-                  *'-pkg'*) echo "rule uses broken -pkg" >&2; exit 1 ;;
-                  *'+Package'*) echo "rule uses broken +Package" >&2; exit 1 ;;
+                  *'for a single lookup, call the `hoogle` tool directly'*)
+                    echo "rule permits direct single lookups (must always use hoogle-search)" >&2
+                    exit 1
+                    ;;
+                esac
+
+                # regression guard: the agent prompt must document the real
+                # hoogle scope filters (bare +packagename/-packagename/
+                # +Module.Name), not the broken +pkg/-pkg/+Package/+Module
+                # forms, and must state the tool ID and output contract.
+                agentfile=${wireServerHaskellDevHarness.package}/agents/hoogle-search.md
+                agenttext=$(cat "$agentfile")
+                for needle in 'wire-hoogle_hoogle' 'map +base' 'map -ghc-internal' "foldl' +Data.List" '+Module.Name' 'source_link' 'deduplicated by' 'also_in' 'docs_truncated' 'never end on a tool call'; do
+                  case "$agenttext" in
+                    *"$needle"*) ;;
+                    *) echo "agent prompt missing '$needle'" >&2; exit 1 ;;
+                  esac
+                done
+                case "$agenttext" in
+                  *'+pkg'*) echo "agent prompt uses broken +pkg" >&2; exit 1 ;;
+                  *'-pkg'*) echo "agent prompt uses broken -pkg" >&2; exit 1 ;;
+                  *'+Package'*) echo "agent prompt uses broken +Package" >&2; exit 1 ;;
                   *'+Module '*)
-                    echo "rule uses broken +Module (use +Module.Name)" >&2
+                    echo "agent prompt uses broken +Module (use +Module.Name)" >&2
                     exit 1
                     ;;
                 esac
@@ -573,6 +592,8 @@
                 run ${wireServerHaskellDevHarness.package}/bin/opencode debug agent hoogle-search > agent.json
                 jq -e '.name == "hoogle-search"' agent.json >/dev/null
                 jq -e '.mode == "subagent"' agent.json >/dev/null
+                # the subagent is restricted to the hoogle MCP tool + read
+                jq -e '.tools.bash == false and .tools.edit == false and .tools.write == false and .tools.webfetch == false and .tools.websearch == false and .tools.grep == false and .tools.glob == false and .tools.skill == false and .tools.task == false and .tools.todowrite == false and .tools.read == true' agent.json >/dev/null
 
                 echo ok > $out
               '';
