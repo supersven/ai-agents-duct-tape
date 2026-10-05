@@ -191,11 +191,30 @@ def nixfmt(s: str) -> str:
         sys.exit(f"error: nixfmt failed: {e}{detail}")
 
 
+def apply_overrides(schema: dict) -> None:
+    """Patch the published schema where it diverges from opencode's code.
+
+    DIVERGES from https://opencode.ai/config.json: ProviderConfig.options is
+    `StructWithRest(..., [Record<String, Any>])` in opencode's code
+    (packages/core/src/v1/config/provider.ts), i.e. arbitrary extra keys such
+    as `headers` are accepted and forwarded to the provider SDK, but the
+    published JSON schema omits the catch-all. The opencode code is the truth
+    (see AGENTS.md), so we add the narrow `headers` field.
+    """
+    options = schema["$defs"]["ProviderConfig"]["properties"]["options"]
+    options["properties"]["headers"] = {
+        "type": "object",
+        "additionalProperties": {"type": "string"},
+        "description": "Extra HTTP headers sent with every request to this provider",
+    }
+
+
 def main() -> None:
     if len(sys.argv) != 3:
         sys.exit("usage: generate-types.py <config.json> <output.nix>")
     with open(sys.argv[1]) as f:
         schema = json.load(f)
+    apply_overrides(schema)
     with open(sys.argv[2], "w") as f:
         f.write(nixfmt(Gen(schema).generate()))
 

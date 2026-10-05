@@ -37,6 +37,7 @@ let
     modules = commonModules ++ [
       (import ./parts/anthropic-models.nix {
         inherit lib;
+        workspaceId = "wrkspc_01XqRi1aTpyhLJbNCYC3fuXz";
         agents = [
           "hoogle-search"
           "semble-search"

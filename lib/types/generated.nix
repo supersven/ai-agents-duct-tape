@@ -819,6 +819,11 @@ let
                   default = null;
                   description = "Timeout in milliseconds between streamed SSE chunks for this provider (default: 300000). If no chunk arrives within this window, the request is aborted. Set to false to disable timeout.";
                 };
+                headers = mkOption {
+                  type = lib.types.nullOr (lib.types.attrsOf (lib.types.str));
+                  default = null;
+                  description = "Extra HTTP headers sent with every request to this provider";
+                };
               };
             }
           );

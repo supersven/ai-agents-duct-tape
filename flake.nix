@@ -563,6 +563,8 @@
                 for a in explore title summary hoogle-search semble-search; do
                   jq -e --arg a "$a" '.agent[$a].model == "anthropic/claude-haiku-4-5" and (.agent[$a] | has("variant") | not)' config.json >/dev/null
                 done
+                # anthropic workspace header
+                jq -e '.provider.anthropic.options.headers["anthropic-workspace-id"] == "wrkspc_01XqRi1aTpyhLJbNCYC3fuXz"' config.json >/dev/null
                 # non-default sampling params are a 400 on Sonnet/Opus 5.5
                 jq -e 'all(.agent[]; has("temperature") | not) and all(.agent[]; has("top_p") | not)' config.json >/dev/null
                 # no phantom agents: only builtins + shipped ones
